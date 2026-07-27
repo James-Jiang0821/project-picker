@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Project Keyword Selection</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --ink: #1f2933;
+    --muted: #667381;
+    --line: #dfe3e8;
+    --accent: #3b5bdb;
+    --accent-ink: #ffffff;
+    --ok: #2f9e44;
+    --warn: #b54708;
+    --err: #c92a2a;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 8px 24px rgba(16, 24, 40, .06);
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181d;
+      --panel: #1c2127;
+      --ink: #e7ebf0;
+      --muted: #9aa5b1;
+      --line: #2c333c;
+      --accent: #7c93f5;
+      --accent-ink: #10141a;
+      --ok: #63c77b;
+      --warn: #e8a33d;
+      --err: #ff8080;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 18px 120px; }
+  header h1 { font-size: 24px; margin: 0 0 6px; }
+  .greeting { font-size: 14px; font-weight: 600; color: var(--accent); margin: 0 0 4px; }
+  header p { margin: 0 0 4px; color: var(--muted); max-width: 70ch; }
+  .rule { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
+
+  .banner {
+    border: 1px solid var(--line); border-left: 4px solid var(--warn);
+    background: var(--panel); border-radius: var(--radius);
+    padding: 12px 14px; margin: 16px 0; box-shadow: var(--shadow);
+  }
+  .banner.err { border-left-color: var(--err); }
+  .banner strong { display: block; margin-bottom: 2px; }
+  .banner p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 22px; align-items: start; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .side { order: -1; position: static; }
+    .side .btn.primary, .side .status { display: none; }
+    .bottombar { display: flex; }
+  }
+
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .search { flex: 1 1 240px; position: relative; }
+  .search input {
+    width: 100%; padding: 10px 12px; font-size: 15px;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--panel); color: var(--ink);
+  }
+  .search input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .btn {
+    padding: 10px 14px; font-size: 14px; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--panel); color: var(--ink);
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.primary:disabled { opacity: .45; cursor: not-allowed; border-color: var(--line); }
+  .btn.primary:disabled:hover { border-color: var(--line); }
+
+  .cat {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    margin-bottom: 12px; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .cat-head {
+    width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
+    padding: 13px 15px; background: none; border: 0; cursor: pointer;
+    font-size: 16px; font-weight: 700; color: var(--ink);
+  }
+  .cat-head:hover { background: rgba(127, 127, 127, .07); }
+  .swatch { width: 10px; height: 22px; border-radius: 3px; flex: none; }
+  .cat-count { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .chev { transition: transform .15s ease; color: var(--muted); font-size: 13px; }
+  .cat[data-open="true"] .chev { transform: rotate(90deg); }
+  .cat-body { display: none; padding: 0 15px 14px; }
+  .cat[data-open="true"] .cat-body { display: block; }
+  .sub { margin-top: 10px; }
+  .sub h3 {
+    font-size: 12px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 8px; font-weight: 700;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 11px; font-size: 14px; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 999px;
+    background: transparent; color: var(--ink); text-align: left;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+  .chip[data-full="true"]:not([aria-pressed="true"]) { opacity: .45; }
+  .rank-dot {
+    display: none; min-width: 19px; height: 19px; line-height: 19px; text-align: center;
+    border-radius: 50%; font-size: 12px; font-weight: 700;
+    background: var(--accent-ink); color: var(--accent);
+  }
+  .chip[aria-pressed="true"] .rank-dot { display: inline-block; }
+  .chip.hidden { display: none; }
+  .sub.hidden, .cat.hidden { display: none; }
+
+  .side { position: sticky; top: 18px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 15px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 3px; }
+  .card .hint { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+  .progress { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-bottom: 13px; }
+  .progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .18s ease; }
+  ol.picks { list-style: none; margin: 0 0 13px; padding: 0; }
+  ol.picks li {
+    display: flex; align-items: center; gap: 9px; padding: 7px 0;
+    border-bottom: 1px dashed var(--line);
+  }
+  ol.picks li:last-child { border-bottom: 0; }
+  .num {
+    flex: none; width: 22px; height: 22px; line-height: 22px; text-align: center;
+    border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+    font-size: 12px; font-weight: 700;
+  }
+  .pick-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .mini {
+    flex: none; width: 25px; height: 25px; padding: 0; line-height: 1;
+    border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+    background: transparent; color: var(--muted); font-size: 13px;
+  }
+  .mini:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .mini:disabled { opacity: .3; cursor: default; }
+  .empty { color: var(--muted); font-size: 14px; padding: 8px 0 14px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .field input {
+    width: 100%; padding: 9px 11px; font-size: 15px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--ink);
+  }
+  .field .sub-hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .side .btn.primary { width: 100%; }
+  .status { font-size: 13px; margin-top: 9px; text-align: center; color: var(--muted); }
+  .status.err { color: var(--err); }
+  .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+  /* Narrow screens put the ranking card above the tree, so the submit control
+     moves to a bar that stays in reach while scrolling the keywords. */
+  .bottombar {
+    display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    align-items: center; gap: 12px; padding: 11px 14px calc(11px + env(safe-area-inset-bottom));
+    background: var(--panel); border-top: 1px solid var(--line);
+    box-shadow: 0 -4px 18px rgba(16, 24, 40, .10);
+  }
+  .bottombar .count { font-size: 14px; font-weight: 600; }
+  .bottombar .count.err { color: var(--err); font-weight: 500; }
+  .bottombar .btn { margin-left: auto; }
+
+  dialog {
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 0;
+    background: var(--panel); color: var(--ink);
+    max-width: 440px; width: calc(100% - 32px); box-shadow: var(--shadow);
+  }
+  dialog::backdrop { background: rgba(10, 14, 20, .55); }
+  .dlg { padding: 20px; }
+  .dlg h2 { margin: 0 0 4px; font-size: 18px; }
+  .dlg p { color: var(--muted); margin: 0 0 14px; font-size: 14px; }
+  .dlg ol { margin: 0 0 18px; padding-left: 22px; }
+  .dlg ol li { padding: 3px 0; }
+  .dlg-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+  .done { text-align: center; padding: 50px 18px; }
+  .done .tick {
+    width: 60px; height: 60px; line-height: 60px; margin: 0 auto 16px;
+    border-radius: 50%; background: var(--ok); color: #fff; font-size: 30px;
+  }
+  .done h1 { font-size: 22px; margin: 0 0 8px; }
+  .done p { color: var(--muted); max-width: 52ch; margin: 0 auto 10px; }
+  .done ol {
+    text-align: left; display: inline-block; margin: 18px 0; padding: 16px 22px 16px 40px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  code.ref {
+    display: inline-block; font-size: 14px; padding: 5px 9px; margin-top: 4px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    overflow-wrap: anywhere;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="wrap" id="app">
+  <header>
+    <p class="greeting hidden" id="greeting"></p>
+    <h1>Choose your project keywords</h1>
+    <p>Pick <strong>exactly 7 different keywords</strong> describing the areas you want to work in, then put them
+       in order of preference. Your first choice matters most.</p>
+    <p>Your keywords are matched against every supervisor's own keywords to produce a shortlist of the
+       supervisors who fit you best.</p>
+  </header>
+
+  <div id="banners"></div>
+  <hr class="rule">
+
+  <div class="layout">
+    <main>
+      <div class="toolbar">
+        <div class="search">
+          <input id="search" type="search" placeholder="Search keywords…" autocomplete="off"
+                 aria-label="Search keywords">
+        </div>
+        <button class="btn" id="expandAll" type="button">Expand all</button>
+        <button class="btn" id="collapseAll" type="button">Collapse all</button>
+      </div>
+      <div id="tree"></div>
+      <p class="empty hidden" id="noMatch">No keyword matches that search.</p>
+    </main>
+
+    <aside class="side">
+      <div class="card">
+        <h2>Your ranking</h2>
+        <p class="hint" id="counter">0 of 7 chosen</p>
+        <div class="progress"><span id="bar"></span></div>
+        <ol class="picks" id="picks"></ol>
+        <p class="empty" id="picksEmpty">Nothing chosen yet — tap a keyword to add it. The order you tap them
+           is your ranking, and you can move them afterwards.</p>
+
+        <div class="field">
+          <label for="studentId">Student number</label>
+          <input id="studentId" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 21045678">
+          <p class="sub-hint">Used only to match this form to you if your personal link fails.</p>
+        </div>
+        <input class="hp" id="website" name="website" type="text" tabindex="-1" autocomplete="off"
+               aria-hidden="true">
+
+        <button class="btn primary" id="submit" type="button" disabled>Review and submit</button>
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="bottombar" id="bottombar">
+  <span class="count" id="barCount">0 of 7 chosen</span>
+  <button class="btn primary" id="barSubmit" type="button" disabled>Review and submit</button>
+</div>
+
+<div class="wrap done hidden" id="done">
+  <div class="tick">✓</div>
+  <h1>Submission received</h1>
+  <p>Your 7 keywords have been recorded, in this order:</p>
+  <ol id="doneList"></ol>
+  <p>You can change your mind any time before the deadline — reopen your personal link and submit again.
+     Only your most recent submission counts.</p>
+  <p>Reference code (keep this in case anything needs checking):<br><code class="ref" id="ref"></code></p>
+</div>
+
+<dialog id="review">
+  <form method="dialog" class="dlg">
+    <h2>Confirm your ranking</h2>
+    <p>Check the order before submitting. 1 is your strongest preference.</p>
+    <ol id="reviewList"></ol>
+    <div class="dlg-actions">
+      <button class="btn" value="cancel" type="submit">Go back</button>
+      <button class="btn primary" value="ok" type="submit" id="confirmBtn">Submit</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+/* ------------------------------------------------------------------ config
+   Google Form acts as a silent data sink: the student never sees it.
+   Get these by opening the live form, "Inspect" each field, and reading the
+   name="entry.NNNNNNN" attributes. The endpoint is the form URL with
+   /viewform replaced by /formResponse.
+   Until the placeholders below are replaced the page runs in dry-run mode:
+   everything works, nothing is sent. */
+const FORM_ENDPOINT = "https://docs.google.com/forms/d/e/PASTE_FORM_ID/formResponse";
+const ENTRY = {
+  token:     "entry.PASTE_TOKEN",
+  studentId: "entry.PASTE_STUDENT_ID",
+  ranks: [
+    "entry.PASTE_RANK_1",
+    "entry.PASTE_RANK_2",
+    "entry.PASTE_RANK_3",
+    "entry.PASTE_RANK_4",
+    "entry.PASTE_RANK_5",
+    "entry.PASTE_RANK_6",
+    "entry.PASTE_RANK_7",
+  ],
+};
+const PICK_COUNT = 7;
+const DRY_RUN = /PASTE_/.test(FORM_ENDPOINT + Object.values(ENTRY).flat().join(""));
+
+/* --------------------------------------------------------------- taxonomy
+   93 keywords, tree order. Must stay in exact-string sync with
+   analysis/figures/taxonomy/keywords_paste_order.txt. */
+const TAXONOMY = [
+  ["Biomedical & Healthcare Engineering", "#0F9E99", [
+    ["Anatomy & Physiology", ["blood flow", "cardiovascular system", "hemodynamics", "muscle",
+      "nervous system", "pregnancy", "skeletal system"]],
+    ["Clinical & Pathology", ["dialysis", "disease progression", "healthcare sector",
+      "infectious diseases", "neurology", "surgery", "tumors"]],
+    ["Bioengineering & Treatments", ["cells", "drug delivery", "gyration vessel",
+      "tissue engineering"]],
+  ]],
+  ["Mechanical & Structural Engineering", "#3B5BDB", [
+    ["Fluid & Thermodynamics", ["aerodynamics", "applied thermodynamics",
+      "computational fluid dynamics", "flame dynamics", "hydrodynamic analysis", "turbulent flow",
+      "vortex mode"]],
+    ["Mechanics & Analysis", ["deformation", "elasticity/plasticity", "fatigue mechanics",
+      "finite element analysis", "joint mechanics", "loading mechanisms", "numerical simulations",
+      "stress analysis", "vibration analysis", "weight criteria"]],
+    ["Vehicles & Transport", ["aircraft structures", "automotive engineering", "drone platform",
+      "hybrid vehicles", "propulsion systems", "ship design", "underwater vehicles",
+      "wing movement"]],
+  ]],
+  ["Materials Science & Manufacturing", "#E8890C", [
+    ["Materials", ["alloys", "composite materials", "fiber materials", "liquid crystal elastomers",
+      "metallic materials", "metamaterials", "polymers"]],
+    ["Material Properties & Testing", ["anisotropy", "crystalline structures", "material testing",
+      "morphology", "phase transformation", "porosity"]],
+    ["Manufacturing & Design Techniques", ["additive manufacturing", "chain manufacturing",
+      "generative design", "molecular engineering", "topological optimization"]],
+  ]],
+  ["Computing, Data & Robotics", "#7048E8", [
+    ["AI & Algorithms", ["algorithm design", "image segmentation", "machine learning",
+      "neural network"]],
+    ["Robotics & Automation", ["adaptable environment", "autonomous navigation", "obstacle detection",
+      "path planning", "robotics"]],
+    ["Sensing & Electronics", ["electronics", "tomography", "ultrasound imaging"]],
+  ]],
+  ["Energy, Environment & Sustainability", "#2F9E44", [
+    ["Power & Energy Systems", ["battery", "combustion engines", "fossil fuels", "heat turbines",
+      "hydrogen fuel cells", "power generation", "renewable energy"]],
+    ["Environment & Infrastructure", ["biofuels", "disposables", "emission reduction",
+      "life cycle engineering", "ocean engineering", "offshore infrastructure", "pipe systems",
+      "plastic recycling", "pyrolysis"]],
+  ]],
+  ["Project & Industry Management", "#495057", [
+    ["General Strategy", ["experimental project", "industrial applications", "marketing strategy",
+      "technical specification"]],
+  ]],
+];
+
+const KEYWORDS = TAXONOMY.flatMap(([, , subs]) => subs.flatMap(([, leaves]) => leaves));
+const INDEX_OF = new Map(KEYWORDS.map((k, i) => [k, i]));
+
+/* ------------------------------------------------------------------ state */
+const params = new URLSearchParams(location.search);
+const TOKEN = (params.get("sid") || "").trim();
+// Cosmetic only — identity comes from the token, so a tampered name changes nothing.
+const NAME = (params.get("n") || "").trim().slice(0, 40);
+const STORE_KEY = "projectallocator:submitted";
+let picks = [];
+let sending = false;
+
+const el = (id) => document.getElementById(id);
+
+/* ------------------------------------------------------------------ build */
+function buildTree() {
+  const tree = el("tree");
+  TAXONOMY.forEach(([name, colour, subs], i) => {
+    const total = subs.reduce((n, [, leaves]) => n + leaves.length, 0);
+    const cat = document.createElement("section");
+    cat.className = "cat";
+    cat.dataset.open = i === 0 ? "true" : "false";
+
+    const head = document.createElement("button");
+    head.type = "button";
+    head.className = "cat-head";
+    head.setAttribute("aria-expanded", cat.dataset.open);
+    head.innerHTML = `<span class="swatch" style="background:${colour}"></span>
+                      <span class="cat-name"></span>
+                      <span class="cat-count">${total}</span>
+                      <span class="chev">▶</span>`;
+    head.querySelector(".cat-name").textContent = name;
+    head.addEventListener("click", () => {
+      const open = cat.dataset.open !== "true";
+      cat.dataset.open = String(open);
+      head.setAttribute("aria-expanded", String(open));
+    });
+
+    const body = document.createElement("div");
+    body.className = "cat-body";
+    subs.forEach(([subName, leaves]) => {
+      const sub = document.createElement("div");
+      sub.className = "sub";
+      const h3 = document.createElement("h3");
+      h3.textContent = subName;
+      const chips = document.createElement("div");
+      chips.className = "chips";
+      leaves.forEach((kw) => chips.appendChild(makeChip(kw, colour)));
+      sub.append(h3, chips);
+      body.appendChild(sub);
+    });
+
+    cat.append(head, body);
+    tree.appendChild(cat);
+  });
+}
+
+function makeChip(kw, colour) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "chip";
+  b.dataset.kw = kw;
+  b.setAttribute("aria-pressed", "false");
+  b.style.setProperty("--accent", colour);
+  const dot = document.createElement("span");
+  dot.className = "rank-dot";
+  const label = document.createElement("span");
+  label.textContent = kw;
+  b.append(dot, label);
+  b.addEventListener("click", () => toggle(kw));
+  return b;
+}
+
+/* ----------------------------------------------------------------- picking */
+function toggle(kw) {
+  const at = picks.indexOf(kw);
+  if (at !== -1) picks.splice(at, 1);
+  else if (picks.length < PICK_COUNT) picks.push(kw);
+  else return flash(`You already have ${PICK_COUNT}. Remove one first.`);
+  render();
+}
+
+function move(i, delta) {
+  const j = i + delta;
+  if (j < 0 || j >= picks.length) return;
+  [picks[i], picks[j]] = [picks[j], picks[i]];
+  render();
+}
+
+function render() {
+  const full = picks.length >= PICK_COUNT;
+  document.querySelectorAll(".chip").forEach((chip) => {
+    const rank = picks.indexOf(chip.dataset.kw);
+    chip.setAttribute("aria-pressed", String(rank !== -1));
+    chip.dataset.full = String(full);
+    if (rank !== -1) chip.querySelector(".rank-dot").textContent = rank + 1;
+  });
+
+  const list = el("picks");
+  list.textContent = "";
+  picks.forEach((kw, i) => {
+    const li = document.createElement("li");
+    const num = document.createElement("span");
+    num.className = "num";
+    num.textContent = i + 1;
+    const name = document.createElement("span");
+    name.className = "pick-name";
+    name.textContent = kw;
+    li.append(num, name,
+      miniBtn("↑", `Move ${kw} up`, i === 0, () => move(i, -1)),
+      miniBtn("↓", `Move ${kw} down`, i === picks.length - 1, () => move(i, 1)),
+      miniBtn("✕", `Remove ${kw}`, false, () => toggle(kw)));
+    list.appendChild(li);
+  });
+
+  const label = `${picks.length} of ${PICK_COUNT} chosen`;
+  el("picksEmpty").classList.toggle("hidden", picks.length > 0);
+  el("counter").textContent = label;
+  el("barCount").textContent = label;
+  el("barCount").classList.remove("err");
+  el("bar").style.width = `${(picks.length / PICK_COUNT) * 100}%`;
+  el("submit").disabled = picks.length !== PICK_COUNT;
+  el("barSubmit").disabled = picks.length !== PICK_COUNT;
+}
+
+function miniBtn(glyph, label, disabled, onClick) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "mini";
+  b.textContent = glyph;
+  b.title = label;
+  b.setAttribute("aria-label", label);
+  b.disabled = disabled;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function flash(msg, isError = true) {
+  const s = el("status");
+  s.textContent = msg;
+  s.classList.toggle("err", isError);
+  el("barCount").textContent = msg;
+  el("barCount").classList.toggle("err", isError);
+  clearTimeout(flash.t);
+  flash.t = setTimeout(() => { s.textContent = ""; s.classList.remove("err"); render(); }, 4000);
+}
+
+/* ------------------------------------------------------------------ search */
+function applySearch(raw) {
+  const q = raw.trim().toLowerCase();
+  let hits = 0;
+  document.querySelectorAll(".cat").forEach((cat) => {
+    let catHits = 0;
+    cat.querySelectorAll(".sub").forEach((sub) => {
+      let subHits = 0;
+      sub.querySelectorAll(".chip").forEach((chip) => {
+        const match = !q || chip.dataset.kw.includes(q);
+        chip.classList.toggle("hidden", !match);
+        if (match) subHits++;
+      });
+      sub.classList.toggle("hidden", subHits === 0);
+      catHits += subHits;
+    });
+    cat.classList.toggle("hidden", catHits === 0);
+    if (q) {
+      cat.dataset.open = "true";
+      cat.querySelector(".cat-head").setAttribute("aria-expanded", "true");
+    }
+    hits += catHits;
+  });
+  el("noMatch").classList.toggle("hidden", hits > 0);
+}
+
+function setAllOpen(open) {
+  document.querySelectorAll(".cat").forEach((cat) => {
+    cat.dataset.open = String(open);
+    cat.querySelector(".cat-head").setAttribute("aria-expanded", String(open));
+  });
+}
+
+/* -------------------------------------------------------------- submission */
+function referenceCode() {
+  const digits = picks.map((kw) => String(INDEX_OF.get(kw) + 1).padStart(2, "0")).join("");
+  return `PA-${TOKEN || "NOLINK"}-${digits}`;
+}
+
+async function send() {
+  if (sending) return;
+  if (el("website").value) return;                       // honeypot: bot, drop silently
+  if (picks.length !== PICK_COUNT || new Set(picks).size !== PICK_COUNT) {
+    return flash(`Pick exactly ${PICK_COUNT} different keywords before submitting.`);
+  }
+  if (!TOKEN && !el("studentId").value.trim()) {
+    return flash("No personal link detected — enter your student number so this can be matched to you.");
+  }
+
+  sending = true;
+  el("submit").disabled = true;
+  flash("Sending…", false);
+
+  const body = new URLSearchParams();
+  body.append(ENTRY.token, TOKEN);
+  body.append(ENTRY.studentId, el("studentId").value.trim());
+  picks.forEach((kw, i) => body.append(ENTRY.ranks[i], kw));
+
+  try {
+    if (DRY_RUN) console.warn("Dry run — form endpoint not configured. Would send:", body.toString());
+    else await fetch(FORM_ENDPOINT, { method: "POST", mode: "no-cors", body });
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ token: TOKEN, at: Date.now(), picks })); } catch {}
+    showDone();
+  } catch (err) {
+    sending = false;
+    el("submit").disabled = false;
+    flash("Could not send — check your connection and try again.");
+  }
+}
+
+function showDone() {
+  el("app").classList.add("hidden");
+  el("bottombar").classList.add("hidden");
+  const list = el("doneList");
+  list.textContent = "";
+  picks.forEach((kw) => {
+    const li = document.createElement("li");
+    li.textContent = kw;
+    list.appendChild(li);
+  });
+  el("ref").textContent = referenceCode();
+  el("done").classList.remove("hidden");
+  window.scrollTo(0, 0);
+}
+
+/* --------------------------------------------------------------- banners */
+function banner(kind, title, text, actionLabel, onAction) {
+  const d = document.createElement("div");
+  d.className = `banner ${kind}`;
+  const strong = document.createElement("strong");
+  strong.textContent = title;
+  const p = document.createElement("p");
+  p.textContent = text;
+  d.append(strong, p);
+  if (actionLabel) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn";
+    b.style.marginTop = "10px";
+    b.textContent = actionLabel;
+    b.addEventListener("click", () => { d.remove(); onAction(); });
+    d.appendChild(b);
+  }
+  el("banners").appendChild(d);
+}
+
+function priorSubmission() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch { return null; }
+}
+
+/* ------------------------------------------------------------------- init */
+buildTree();
+render();
+
+if (NAME) {
+  el("greeting").textContent = `Hello, ${NAME}`;
+  el("greeting").classList.remove("hidden");
+}
+
+el("search").addEventListener("input", (e) => applySearch(e.target.value));
+el("expandAll").addEventListener("click", () => setAllOpen(true));
+el("collapseAll").addEventListener("click", () => setAllOpen(false));
+
+function openReview() {
+  const list = el("reviewList");
+  list.textContent = "";
+  picks.forEach((kw) => {
+    const li = document.createElement("li");
+    li.textContent = kw;
+    list.appendChild(li);
+  });
+  el("review").showModal();
+}
+el("submit").addEventListener("click", openReview);
+el("barSubmit").addEventListener("click", openReview);
+el("review").addEventListener("close", () => { if (el("review").returnValue === "ok") send(); });
+
+if (!TOKEN) {
+  banner("err", "This page was not opened from your personal link",
+    "Use the link emailed to you so the submission can be matched to you automatically. "
+    + "If you no longer have it, you can still submit by entering your student number below.");
+}
+
+const prior = priorSubmission();
+const priorPicks = Array.isArray(prior?.picks)
+  ? prior.picks.filter((kw) => INDEX_OF.has(kw)).slice(0, PICK_COUNT)
+  : [];
+if (prior && prior.token === TOKEN && priorPicks.length) {
+  const when = new Date(prior.at).toLocaleString();
+  banner("", "You have already submitted from this device",
+    `Last submitted ${when}. Submitting again replaces it — only your most recent answer counts.`,
+    "Restore my previous choices",
+    () => { picks = priorPicks; render(); });
+}
+
+if (DRY_RUN) {
+  banner("", "Test mode", "The form endpoint is not configured yet, so nothing is actually sent. "
+    + "Submissions are logged to the browser console instead.");
+}
+</script>
+</body>
+</html>
