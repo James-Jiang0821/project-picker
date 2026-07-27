@@ -44,7 +44,7 @@
   }
   .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 18px 120px; }
   header h1 { font-size: 24px; margin: 0 0 6px; }
-  .greeting { font-size: 14px; font-weight: 600; color: var(--accent); margin: 0 0 4px; }
+  .greeting { font-size: 28px; font-weight: 700; color: var(--accent); margin: 0 0 10px; line-height: 1.2; }
   header p { margin: 0 0 4px; color: var(--muted); max-width: 70ch; }
   .rule { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
 
@@ -152,14 +152,6 @@
   .mini:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   .mini:disabled { opacity: .3; cursor: default; }
   .empty { color: var(--muted); font-size: 14px; padding: 8px 0 14px; }
-  .field { margin-bottom: 12px; }
-  .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-  .field input {
-    width: 100%; padding: 9px 11px; font-size: 15px;
-    border: 1px solid var(--line); border-radius: 8px;
-    background: var(--bg); color: var(--ink);
-  }
-  .field .sub-hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .side .btn.primary { width: 100%; }
   .status { font-size: 13px; margin-top: 9px; text-align: center; color: var(--muted); }
   .status.err { color: var(--err); }
@@ -216,8 +208,9 @@
     <p class="greeting hidden" id="greeting"></p>
     <h1>Choose your project keywords</h1>
     <p>Pick <strong>exactly 7 different keywords</strong> describing the areas you want to work in, then put them
-       in order of preference. Your first choice matters most.</p>
-    <p>Your keywords are matched against every supervisor's own keywords to produce a shortlist of the
+       in order of preference. Your first choice matters most, with importance decreasing the further down
+       the ranking.</p>
+    <p>Your keywords are matched against every supervisor's own tiered keywords to produce a shortlist of the
        supervisors who fit you best.</p>
   </header>
 
@@ -244,14 +237,8 @@
         <p class="hint" id="counter">0 of 7 chosen</p>
         <div class="progress"><span id="bar"></span></div>
         <ol class="picks" id="picks"></ol>
-        <p class="empty" id="picksEmpty">Nothing chosen yet — tap a keyword to add it. The order you tap them
-           is your ranking, and you can move them afterwards.</p>
+        <p class="empty" id="picksEmpty">Nothing chosen yet, tap a keyword to add it.</p>
 
-        <div class="field">
-          <label for="studentId">Student number</label>
-          <input id="studentId" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 21045678">
-          <p class="sub-hint">Used only to match this form to you if your personal link fails.</p>
-        </div>
         <input class="hp" id="website" name="website" type="text" tabindex="-1" autocomplete="off"
                aria-hidden="true">
 
@@ -299,8 +286,7 @@
    everything works, nothing is sent. */
 const FORM_ENDPOINT = "https://docs.google.com/forms/d/e/PASTE_FORM_ID/formResponse";
 const ENTRY = {
-  token:     "entry.PASTE_TOKEN",
-  studentId: "entry.PASTE_STUDENT_ID",
+  token: "entry.PASTE_TOKEN",
   ranks: [
     "entry.PASTE_RANK_1",
     "entry.PASTE_RANK_2",
@@ -557,8 +543,9 @@ async function send() {
   if (picks.length !== PICK_COUNT || new Set(picks).size !== PICK_COUNT) {
     return flash(`Pick exactly ${PICK_COUNT} different keywords before submitting.`);
   }
-  if (!TOKEN && !el("studentId").value.trim()) {
-    return flash("No personal link detected — enter your student number so this can be matched to you.");
+  if (!TOKEN) {
+    return flash("No personal link detected — reopen the link emailed to you, otherwise this cannot be "
+      + "matched to you.");
   }
 
   sending = true;
@@ -567,7 +554,6 @@ async function send() {
 
   const body = new URLSearchParams();
   body.append(ENTRY.token, TOKEN);
-  body.append(ENTRY.studentId, el("studentId").value.trim());
   picks.forEach((kw, i) => body.append(ENTRY.ranks[i], kw));
 
   try {
@@ -652,7 +638,7 @@ el("review").addEventListener("close", () => { if (el("review").returnValue === 
 if (!TOKEN) {
   banner("err", "This page was not opened from your personal link",
     "Use the link emailed to you so the submission can be matched to you automatically. "
-    + "If you no longer have it, you can still submit by entering your student number below.");
+    + "If you no longer have it, contact the module coordinator for a replacement.");
 }
 
 const prior = priorSubmission();
@@ -665,11 +651,6 @@ if (prior && prior.token === TOKEN && priorPicks.length) {
     `Last submitted ${when}. Submitting again replaces it — only your most recent answer counts.`,
     "Restore my previous choices",
     () => { picks = priorPicks; render(); });
-}
-
-if (DRY_RUN) {
-  banner("", "Test mode", "The form endpoint is not configured yet, so nothing is actually sent. "
-    + "Submissions are logged to the browser console instead.");
 }
 </script>
 </body>
