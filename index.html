@@ -76,7 +76,6 @@
     .layout { grid-template-columns: minmax(0, 1fr); }
     .side { order: -1; position: static; }
     .side .btn.primary, .side .status { display: none; }
-    .bottombar { display: flex; }
   }
 
   .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -181,7 +180,10 @@
   }
   .bottombar .count { font-size: 14px; font-weight: 600; }
   .bottombar .count.err { color: var(--err); font-weight: 500; }
-  .bottombar .btn { margin-left: auto; }
+  .bottombar .btn { margin-left: auto; padding: 13px 18px; }  /* 44px tap target */
+  /* Must come after the rules above: media queries add no specificity, so an
+     earlier @media display:flex loses to the later .bottombar display:none. */
+  @media (max-width: 900px) { .bottombar { display: flex; } }
 
   dialog {
     border: 1px solid var(--line); border-radius: var(--radius); padding: 0;
