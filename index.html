@@ -44,7 +44,6 @@
   }
   .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 18px 120px; }
   header h1 { font-size: 24px; margin: 0 0 6px; }
-  .greeting { font-size: 28px; font-weight: 700; color: var(--accent); margin: 0 0 10px; line-height: 1.2; }
   header p { margin: 0 0 4px; color: var(--muted); max-width: 70ch; }
   .rule { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
 
@@ -56,6 +55,21 @@
   .banner.err { border-left-color: var(--err); }
   .banner strong { display: block; margin-bottom: 2px; }
   .banner p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .idcard {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 14px 15px; margin-top: 16px; max-width: 420px;
+  }
+  .idcard label { display: block; font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .idcard input {
+    width: 100%; padding: 10px 12px; font-size: 16px; letter-spacing: .04em;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--bg); color: var(--ink);
+  }
+  .idcard input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .idcard input[aria-invalid="true"] { border-color: var(--err); }
+  .idcard .hint { font-size: 13px; color: var(--muted); margin: 7px 0 0; }
+  .idcard .iderr { font-size: 13px; color: var(--err); margin: 7px 0 0; }
 
   .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 22px; align-items: start; }
   @media (max-width: 900px) {
@@ -205,13 +219,20 @@
 
 <div class="wrap" id="app">
   <header>
-    <p class="greeting hidden" id="greeting"></p>
     <h1>Choose your project keywords</h1>
     <p>Pick <strong>exactly 7 different keywords</strong> describing the areas you want to work in, then put them
        in order of preference. Your first choice matters most, with importance decreasing the further down
        the ranking.</p>
     <p>Your keywords are matched against every supervisor's own tiered keywords to produce a shortlist of the
        supervisors who fit you best.</p>
+
+    <div class="idcard">
+      <label for="studentId">Your student number</label>
+      <input id="studentId" type="text" inputmode="numeric" autocomplete="off" maxlength="12"
+             placeholder="e.g. 21012345" aria-describedby="idHint">
+      <p class="hint" id="idHint">Your keywords are matched to you by this number, so check it carefully.</p>
+      <p class="iderr hidden" id="idErr" role="alert"></p>
+    </div>
   </header>
 
   <div id="banners"></div>
@@ -259,8 +280,8 @@
   <h1>Submission received</h1>
   <p>Your 7 keywords have been recorded, in this order:</p>
   <ol id="doneList"></ol>
-  <p>You can change your mind any time before the deadline — reopen your personal link and submit again.
-     Only your most recent submission counts.</p>
+  <p>You can change your mind any time before the deadline — reopen this page and submit again with the
+     same student number. Only your most recent submission counts.</p>
   <p>Reference code (keep this in case anything needs checking):<br><code class="ref" id="ref"></code></p>
 </div>
 
@@ -268,6 +289,7 @@
   <form method="dialog" class="dlg">
     <h2>Confirm your ranking</h2>
     <p>Check the order before submitting. 1 is your strongest preference.</p>
+    <p>Submitting as student number <strong id="reviewId"></strong></p>
     <ol id="reviewList"></ol>
     <div class="dlg-actions">
       <button class="btn" value="cancel" type="submit">Go back</button>
@@ -286,7 +308,7 @@
    everything works, nothing is sent. */
 const FORM_ENDPOINT = "https://docs.google.com/forms/d/e/1FAIpQLSeDnwpZfGGkmJo6THrF_oL1X4amJhgk67DI7-O3BPCpo4Mxxw/formResponse";
 const ENTRY = {
-  token: "entry.1249785948",
+  studentNumber: "entry.1249785948",
   ranks: [
     "entry.552093235",
     "entry.198155572",
@@ -355,15 +377,14 @@ const KEYWORDS = TAXONOMY.flatMap(([, , subs]) => subs.flatMap(([, leaves]) => l
 const INDEX_OF = new Map(KEYWORDS.map((k, i) => [k, i]));
 
 /* ------------------------------------------------------------------ state */
-const params = new URLSearchParams(location.search);
-const TOKEN = (params.get("sid") || "").trim();
-// Cosmetic only — identity comes from the token, so a tampered name changes nothing.
-const NAME = (params.get("n") || "").trim().slice(0, 40);
 const STORE_KEY = "projectallocator:submitted";
+// UCL numbers are 8 digits; left loose so an unusual one is not hard-blocked.
+const ID_PATTERN = /^\d{6,12}$/;
 let picks = [];
 let sending = false;
 
 const el = (id) => document.getElementById(id);
+const studentNumber = () => el("studentId").value.replace(/\s+/g, "");
 
 /* ------------------------------------------------------------------ build */
 function buildTree() {
@@ -532,9 +553,20 @@ function setAllOpen(open) {
 }
 
 /* -------------------------------------------------------------- submission */
+function validId() {
+  const id = studentNumber();
+  const ok = ID_PATTERN.test(id);
+  el("studentId").setAttribute("aria-invalid", String(!ok));
+  el("idErr").textContent = ok ? ""
+    : id ? "That does not look like a student number — digits only, no letters or spaces."
+         : "Enter your student number before submitting.";
+  el("idErr").classList.toggle("hidden", ok);
+  return ok;
+}
+
 function referenceCode() {
   const digits = picks.map((kw) => String(INDEX_OF.get(kw) + 1).padStart(2, "0")).join("");
-  return `PA-${TOKEN || "NOLINK"}-${digits}`;
+  return `PA-${studentNumber()}-${digits}`;
 }
 
 async function send() {
@@ -543,9 +575,9 @@ async function send() {
   if (picks.length !== PICK_COUNT || new Set(picks).size !== PICK_COUNT) {
     return flash(`Pick exactly ${PICK_COUNT} different keywords before submitting.`);
   }
-  if (!TOKEN) {
-    return flash("No personal link detected — reopen the link emailed to you, otherwise this cannot be "
-      + "matched to you.");
+  if (!validId()) {
+    el("studentId").focus();
+    return flash("Check your student number before submitting.");
   }
 
   sending = true;
@@ -553,13 +585,15 @@ async function send() {
   flash("Sending…", false);
 
   const body = new URLSearchParams();
-  body.append(ENTRY.token, TOKEN);
+  body.append(ENTRY.studentNumber, studentNumber());
   picks.forEach((kw, i) => body.append(ENTRY.ranks[i], kw));
 
   try {
     if (DRY_RUN) console.warn("Dry run — form endpoint not configured. Would send:", body.toString());
     else await fetch(FORM_ENDPOINT, { method: "POST", mode: "no-cors", body });
-    try { localStorage.setItem(STORE_KEY, JSON.stringify({ token: TOKEN, at: Date.now(), picks })); } catch {}
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({ id: studentNumber(), at: Date.now(), picks }));
+    } catch {}
     showDone();
   } catch (err) {
     sending = false;
@@ -612,16 +646,17 @@ function priorSubmission() {
 buildTree();
 render();
 
-if (NAME) {
-  el("greeting").textContent = `Hello, ${NAME}`;
-  el("greeting").classList.remove("hidden");
-}
-
+el("studentId").addEventListener("input", () => { if (el("idErr").textContent) validId(); });
 el("search").addEventListener("input", (e) => applySearch(e.target.value));
 el("expandAll").addEventListener("click", () => setAllOpen(true));
 el("collapseAll").addEventListener("click", () => setAllOpen(false));
 
 function openReview() {
+  if (!validId()) {
+    el("studentId").focus();
+    el("studentId").scrollIntoView({ block: "center", behavior: "smooth" });
+    return flash("Enter your student number before submitting.");
+  }
   const list = el("reviewList");
   list.textContent = "";
   picks.forEach((kw) => {
@@ -629,26 +664,23 @@ function openReview() {
     li.textContent = kw;
     list.appendChild(li);
   });
+  el("reviewId").textContent = studentNumber();
   el("review").showModal();
 }
 el("submit").addEventListener("click", openReview);
 el("barSubmit").addEventListener("click", openReview);
 el("review").addEventListener("close", () => { if (el("review").returnValue === "ok") send(); });
 
-if (!TOKEN) {
-  banner("err", "This page was not opened from your personal link",
-    "Use the link emailed to you so the submission can be matched to you automatically. "
-    + "If you no longer have it, contact the module coordinator for a replacement.");
-}
-
 const prior = priorSubmission();
 const priorPicks = Array.isArray(prior?.picks)
   ? prior.picks.filter((kw) => INDEX_OF.has(kw)).slice(0, PICK_COUNT)
   : [];
-if (prior && prior.token === TOKEN && priorPicks.length) {
+if (prior && priorPicks.length) {
+  if (ID_PATTERN.test(prior.id || "")) el("studentId").value = prior.id;
   const when = new Date(prior.at).toLocaleString();
   banner("", "You have already submitted from this device",
-    `Last submitted ${when}. Submitting again replaces it — only your most recent answer counts.`,
+    `Last submitted ${when}${prior.id ? ` for student number ${prior.id}` : ""}. `
+    + "Submitting again replaces it — only your most recent answer counts.",
     "Restore my previous choices",
     () => { picks = priorPicks; render(); });
 }
