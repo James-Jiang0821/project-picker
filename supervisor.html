@@ -234,12 +234,12 @@
     <h1>Tier your project keywords</h1>
     <p>Students pick and rank the areas they want to work in. This page collects the other half of the
        match: <strong>your seven keywords</strong> and how central each one is to your work.</p>
-    <p>Your current seven are filled in for you once you select your name — they are a starting point, so
+    <p>Your current seven are filled in for you once you select your name. They are a starting point, so
        swap any that are out of date. Then set a tier on each:</p>
     <ol class="tierkey">
-      <li><b>Tier 1 — main domain.</b> What you know best and most want to supervise. Up to three.</li>
-      <li><b>Tier 2 — secondary domain.</b> Comfortably within your work.</li>
-      <li><b>Tier 3 — general knowledge.</b> You could supervise it, but it is not your focus.</li>
+      <li><b>Tier 1: main domain.</b> What you know best and most want to supervise. Up to three.</li>
+      <li><b>Tier 2: secondary domain.</b> Comfortably within your work.</li>
+      <li><b>Tier 3: general knowledge.</b> You could supervise it, but it is not your focus.</li>
     </ol>
 
     <div class="idcard">
@@ -288,7 +288,7 @@
         <input class="hp" id="website" name="website" type="text" tabindex="-1" autocomplete="off"
                aria-hidden="true">
 
-        <button class="btn primary" id="submit" type="button" disabled>Review and submit</button>
+        <button class="btn primary" id="submit" type="button">Review and submit</button>
         <p class="status" id="status" role="status" aria-live="polite"></p>
       </div>
     </aside>
@@ -297,7 +297,7 @@
 
 <div class="bottombar" id="bottombar">
   <span class="count" id="barCount">0 of 7 chosen</span>
-  <button class="btn primary" id="barSubmit" type="button" disabled>Review and submit</button>
+  <button class="btn primary" id="barSubmit" type="button">Review and submit</button>
 </div>
 
 <div class="wrap done hidden" id="done">
@@ -595,20 +595,23 @@ function loadRoster(name) {
   render();
 }
 
-/* Empty when ready to submit, otherwise the one thing still to fix. */
+/* null when ready to submit, otherwise the one thing still to fix and, where it
+   is a field rather than the keyword list, which field to jump to. Submit stays
+   clickable throughout so this message is how the rules get explained. */
 function blocker() {
-  if (!supervisorName()) return "Select your name to begin.";
+  const at = (msg, focus) => ({ msg, focus });
+  if (!supervisorName()) return at("Select your name to begin.", "supervisor");
   if (picks.length !== PICK_COUNT) {
     const n = PICK_COUNT - picks.length;
-    return n > 0 ? `Choose ${n} more keyword${n === 1 ? "" : "s"}.`
-                 : `Remove ${-n} keyword${-n === 1 ? "" : "s"}.`;
+    return at(n > 0 ? `Choose ${n} more keyword${n === 1 ? "" : "s"}.`
+                    : `Remove ${-n} keyword${-n === 1 ? "" : "s"}.`);
   }
   const untiered = picks.filter((p) => !p.tier).length;
-  if (untiered) return `Set a tier on ${untiered} more keyword${untiered === 1 ? "" : "s"}.`;
-  if (t1Count() < MIN_T1) return `Mark at least ${MIN_T1} keyword as Tier 1.`;
-  if (t1Count() > MAX_T1) return `Only ${MAX_T1} keywords can be Tier 1.`;
-  if (!validCap()) return "Enter how many students you can take.";
-  return "";
+  if (untiered) return at(`Set a tier on ${untiered} more keyword${untiered === 1 ? "" : "s"}.`);
+  if (t1Count() < MIN_T1) return at(`Mark at least ${MIN_T1} keyword as Tier 1.`);
+  if (t1Count() > MAX_T1) return at(`Only ${MAX_T1} keywords can be Tier 1.`);
+  if (!validCap()) return at("Enter how many students you can take.", "cap");
+  return null;
 }
 
 function render() {
@@ -665,10 +668,6 @@ function render() {
   el("barCount").textContent = label;
   el("barCount").classList.remove("err");
   el("bar").style.width = `${((picks.length + tiered) / (PICK_COUNT * 2)) * 100}%`;
-
-  const ready = !blocker();
-  el("submit").disabled = !ready;
-  el("barSubmit").disabled = !ready;
 }
 
 function flash(msg, isError = true) {
@@ -750,7 +749,7 @@ async function send() {
   if (sending) return;
   if (el("website").value) return;                       // honeypot: bot, drop silently
   const stop = blocker();
-  if (stop) return flash(stop);
+  if (stop) return flash(stop.msg);
   if (new Set(picks.map((p) => p.kw)).size !== PICK_COUNT) {
     return flash(`Pick ${PICK_COUNT} different keywords before submitting.`);
   }
@@ -792,8 +791,8 @@ function tierGroups(into) {
     const g = document.createElement("div");
     g.className = "group";
     const h = document.createElement("h3");
-    h.textContent = ["", "Tier 1 — main domain", "Tier 2 — secondary domain",
-                     "Tier 3 — general knowledge"][t];
+    h.textContent = ["", "Tier 1: main domain", "Tier 2: secondary domain",
+                     "Tier 3: general knowledge"][t];
     const ul = document.createElement("ul");
     inTier.forEach((p) => {
       const li = document.createElement("li");
@@ -858,18 +857,16 @@ el("expandAll").addEventListener("click", () => setAllOpen(true));
 el("collapseAll").addEventListener("click", () => setAllOpen(false));
 
 function openReview() {
-  if (!validName()) {
-    el("supervisor").focus();
-    el("supervisor").scrollIntoView({ block: "center", behavior: "smooth" });
-    return flash("Select your name before submitting.");
-  }
-  if (!showCapError()) {
-    el("cap").focus();
-    el("cap").scrollIntoView({ block: "center", behavior: "smooth" });
-    return flash("Enter how many students you can take.");
-  }
   const stop = blocker();
-  if (stop) return flash(stop);
+  if (stop) {
+    if (stop.focus === "supervisor") validName();
+    if (stop.focus === "cap") showCapError();
+    if (stop.focus) {
+      el(stop.focus).focus();
+      el(stop.focus).scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+    return flash(stop.msg);
+  }
   tierGroups(el("reviewGroups"));
   el("reviewName").textContent = supervisorName();
   el("reviewCap").textContent = capValue();
