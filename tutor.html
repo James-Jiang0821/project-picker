@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Personal Tutor — Subject Areas</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --ink: #1f2933;
+    --muted: #667381;
+    --line: #dfe3e8;
+    --accent: #3b5bdb;
+    --accent-ink: #ffffff;
+    --ok: #2f9e44;
+    --warn: #b54708;
+    --err: #c92a2a;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 8px 24px rgba(16, 24, 40, .06);
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181d;
+      --panel: #1c2127;
+      --ink: #e7ebf0;
+      --muted: #9aa5b1;
+      --line: #2c333c;
+      --accent: #7c93f5;
+      --accent-ink: #10141a;
+      --ok: #63c77b;
+      --warn: #e8a33d;
+      --err: #ff8080;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 18px 120px; }
+  header h1 { font-size: 24px; margin: 0 0 6px; }
+  header p { margin: 0 0 4px; color: var(--muted); max-width: 70ch; }
+  .rule { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
+
+  .banner {
+    border: 1px solid var(--line); border-left: 4px solid var(--warn);
+    background: var(--panel); border-radius: var(--radius);
+    padding: 12px 14px; margin: 16px 0; box-shadow: var(--shadow);
+  }
+  .banner.err { border-left-color: var(--err); }
+  .banner strong { display: block; margin-bottom: 2px; }
+  .banner p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .idcard {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 14px 15px; margin-top: 16px; max-width: 420px;
+  }
+  .idcard label { display: block; font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .idcard input {
+    width: 100%; padding: 10px 12px; font-size: 16px; letter-spacing: .04em;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--bg); color: var(--ink);
+  }
+  .idcard input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .idcard input[aria-invalid="true"] { border-color: var(--err); }
+  .idcard .hint { font-size: 13px; color: var(--muted); margin: 7px 0 0; }
+  .idcard .iderr { font-size: 13px; color: var(--err); margin: 7px 0 0; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 22px; align-items: start; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .side { order: -1; position: static; }
+    .side .btn.primary, .side .status { display: none; }
+  }
+
+  .btn {
+    padding: 10px 14px; font-size: 14px; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--panel); color: var(--ink);
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.primary:disabled { opacity: .45; cursor: not-allowed; border-color: var(--line); }
+  .btn.primary:disabled:hover { border-color: var(--line); }
+
+  .areas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 640px) { .areas { grid-template-columns: minmax(0, 1fr); } }
+  .area {
+    display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left;
+    padding: 15px; cursor: pointer; font: inherit; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+  .area:hover { border-color: var(--areaink); }
+  .area:focus-visible { outline: 2px solid var(--areaink); outline-offset: 2px; }
+  .area[aria-pressed="true"] {
+    border-color: var(--areaink); border-width: 2px; padding: 14px;
+    background: color-mix(in srgb, var(--areaink) 10%, var(--panel));
+  }
+  .area[data-full="true"]:not([aria-pressed="true"]) { opacity: .5; }
+  .swatch { width: 10px; align-self: stretch; min-height: 40px; border-radius: 3px; flex: none; background: var(--areaink); }
+  .area-text { flex: 1; min-width: 0; }
+  .area-name { display: block; font-size: 16px; font-weight: 700; }
+  .area-desc { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
+  .rank-dot {
+    display: none; flex: none; width: 26px; height: 26px; line-height: 26px; text-align: center;
+    border-radius: 50%; font-size: 14px; font-weight: 700;
+    background: var(--areaink); color: #fff;
+  }
+  .area[aria-pressed="true"] .rank-dot { display: block; }
+
+  .side { position: sticky; top: 18px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 15px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 3px; }
+  .card .hint { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+  .progress { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-bottom: 13px; }
+  .progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .18s ease; }
+  ol.picks { list-style: none; margin: 0 0 13px; padding: 0; }
+  ol.picks li {
+    display: flex; align-items: center; gap: 9px; padding: 7px 0;
+    border-bottom: 1px dashed var(--line);
+  }
+  ol.picks li:last-child { border-bottom: 0; }
+  .num {
+    flex: none; width: 22px; height: 22px; line-height: 22px; text-align: center;
+    border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+    font-size: 12px; font-weight: 700;
+  }
+  .pick-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+  .mini {
+    flex: none; width: 25px; height: 25px; padding: 0; line-height: 1;
+    border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+    background: transparent; color: var(--muted); font-size: 13px;
+  }
+  .mini:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .mini:disabled { opacity: .3; cursor: default; }
+  .empty { color: var(--muted); font-size: 14px; padding: 8px 0 14px; }
+  .side .btn.primary { width: 100%; }
+  .status { font-size: 13px; margin-top: 9px; text-align: center; color: var(--muted); }
+  .status.err { color: var(--err); }
+  .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+  /* Narrow screens put the choices card above the areas, so the submit control
+     moves to a bar that stays in reach while scrolling. */
+  .bottombar {
+    display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    align-items: center; gap: 12px; padding: 11px 14px calc(11px + env(safe-area-inset-bottom));
+    background: var(--panel); border-top: 1px solid var(--line);
+    box-shadow: 0 -4px 18px rgba(16, 24, 40, .10);
+  }
+  .bottombar .count { font-size: 14px; font-weight: 600; }
+  .bottombar .count.err { color: var(--err); font-weight: 500; }
+  .bottombar .btn { margin-left: auto; padding: 13px 18px; }  /* 44px tap target */
+  /* Must come after the rules above: media queries add no specificity, so an
+     earlier @media display:flex loses to the later .bottombar display:none. */
+  @media (max-width: 900px) { .bottombar { display: flex; } }
+
+  dialog {
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 0;
+    background: var(--panel); color: var(--ink);
+    max-width: 440px; width: calc(100% - 32px); box-shadow: var(--shadow);
+  }
+  dialog::backdrop { background: rgba(10, 14, 20, .55); }
+  .dlg { padding: 20px; }
+  .dlg h2 { margin: 0 0 4px; font-size: 18px; }
+  .dlg p { color: var(--muted); margin: 0 0 14px; font-size: 14px; }
+  .dlg ol { margin: 0 0 18px; padding-left: 22px; }
+  .dlg ol li { padding: 3px 0; }
+  .dlg-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+  .done { text-align: center; padding: 50px 18px; }
+  .done .tick {
+    width: 60px; height: 60px; line-height: 60px; margin: 0 auto 16px;
+    border-radius: 50%; background: var(--ok); color: #fff; font-size: 30px;
+  }
+  .done h1 { font-size: 22px; margin: 0 0 8px; }
+  .done p { color: var(--muted); max-width: 52ch; margin: 0 auto 10px; }
+  .done ol {
+    text-align: left; display: inline-block; margin: 18px 0; padding: 16px 22px 16px 40px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  code.ref {
+    display: inline-block; font-size: 14px; padding: 5px 9px; margin-top: 4px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    overflow-wrap: anywhere;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="wrap" id="app">
+  <header>
+    <h1>Choose your subject areas</h1>
+    <p>Pick <strong>exactly 2 different areas</strong> you are most interested in, then put them in order of
+       preference. Your first choice matters most.</p>
+    <p>Your choices are matched against your personal tutors' own areas so you are assigned the tutor whose
+       interests fit yours best.</p>
+
+    <div class="idcard">
+      <label for="studentId">Your student number</label>
+      <input id="studentId" type="text" inputmode="numeric" autocomplete="off" maxlength="12"
+             placeholder="e.g. 21012345" aria-describedby="idHint">
+      <p class="hint" id="idHint">Your choices are matched to you by this number, so check it carefully.</p>
+      <p class="iderr hidden" id="idErr" role="alert"></p>
+    </div>
+  </header>
+
+  <div id="banners"></div>
+  <hr class="rule">
+
+  <div class="layout">
+    <main>
+      <div class="areas" id="areas"></div>
+    </main>
+
+    <aside class="side">
+      <div class="card">
+        <h2>Your choices</h2>
+        <p class="hint" id="counter">0 of 2 chosen</p>
+        <div class="progress"><span id="bar"></span></div>
+        <ol class="picks" id="picks"></ol>
+        <p class="empty" id="picksEmpty">Nothing chosen yet, tap an area to add it.</p>
+
+        <input class="hp" id="website" name="website" type="text" tabindex="-1" autocomplete="off"
+               aria-hidden="true">
+
+        <button class="btn primary" id="submit" type="button" disabled>Review and submit</button>
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="bottombar" id="bottombar">
+  <span class="count" id="barCount">0 of 2 chosen</span>
+  <button class="btn primary" id="barSubmit" type="button" disabled>Review and submit</button>
+</div>
+
+<div class="wrap done hidden" id="done">
+  <div class="tick">✓</div>
+  <h1>Submission received</h1>
+  <p>Your 2 areas have been recorded, in this order:</p>
+  <ol id="doneList"></ol>
+  <p>You can change your mind any time before the deadline — reopen this page and submit again with the
+     same student number. Only your most recent submission counts.</p>
+  <p>Reference code (keep this in case anything needs checking):<br><code class="ref" id="ref"></code></p>
+</div>
+
+<dialog id="review">
+  <form method="dialog" class="dlg">
+    <h2>Confirm your choices</h2>
+    <p>Check the order before submitting. 1 is your strongest preference.</p>
+    <p>Submitting as student number <strong id="reviewId"></strong></p>
+    <ol id="reviewList"></ol>
+    <div class="dlg-actions">
+      <button class="btn" value="cancel" type="submit">Go back</button>
+      <button class="btn primary" value="ok" type="submit" id="confirmBtn">Submit</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+/* ------------------------------------------------------------------ config
+   Google Form acts as a silent data sink: the student never sees it.
+   Get these by opening the live form, "Inspect" each field, and reading the
+   name="entry.NNNNNNN" attributes. The endpoint is the form URL with
+   /viewform replaced by /formResponse.
+   Until the placeholders below are replaced the page runs in dry-run mode:
+   everything works, nothing is sent. */
+const FORM_ENDPOINT = "PASTE_FORM_ENDPOINT";
+const ENTRY = {
+  studentNumber: "PASTE_ENTRY_STUDENT_NUMBER",
+  ranks: [
+    "PASTE_ENTRY_RANK_1",
+    "PASTE_ENTRY_RANK_2",
+  ],
+};
+const PICK_COUNT = 2;
+const DRY_RUN = /PASTE_/.test(FORM_ENDPOINT + Object.values(ENTRY).flat().join(""));
+
+/* ---------------------------------------------------------------- areas
+   The six top-level branches of the project keyword tree, same names and
+   colours. The subheading lists the branch's own subcategories so a first year
+   can tell what sits under it; the last branch has only one, so it lists its
+   keywords instead. */
+const AREAS = [
+  ["Biomedical & Healthcare Engineering", "#0F9E99",
+    "Anatomy & physiology · Clinical & pathology · Bioengineering & treatments"],
+  ["Mechanical & Structural Engineering", "#3B5BDB",
+    "Fluids & thermodynamics · Mechanics & analysis · Vehicles & transport"],
+  ["Materials Science & Manufacturing", "#E8890C",
+    "Materials · Material properties & testing · Manufacturing & design techniques"],
+  ["Computing, Data & Robotics", "#7048E8",
+    "AI & algorithms · Robotics & automation · Sensing & electronics"],
+  ["Energy, Environment & Sustainability", "#2F9E44",
+    "Power & energy systems · Environment & infrastructure"],
+  ["Project & Industry Management", "#495057",
+    "Experimental projects · Industrial applications · Marketing strategy · Technical specification"],
+];
+
+const NAMES = AREAS.map(([name]) => name);
+const INDEX_OF = new Map(NAMES.map((name, i) => [name, i]));
+
+/* ------------------------------------------------------------------ state */
+const STORE_KEY = "projectallocator:tutor:submitted";
+// UCL numbers are 8 digits; left loose so an unusual one is not hard-blocked.
+const ID_PATTERN = /^\d{6,12}$/;
+let picks = [];
+let sending = false;
+
+const el = (id) => document.getElementById(id);
+const studentNumber = () => el("studentId").value.replace(/\s+/g, "");
+
+/* ------------------------------------------------------------------ build */
+function buildAreas() {
+  const host = el("areas");
+  AREAS.forEach(([name, colour, desc]) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "area";
+    b.dataset.area = name;
+    b.setAttribute("aria-pressed", "false");
+    b.style.setProperty("--areaink", colour);
+    b.innerHTML = `<span class="swatch"></span>
+                   <span class="area-text">
+                     <span class="area-name"></span>
+                     <span class="area-desc"></span>
+                   </span>
+                   <span class="rank-dot"></span>`;
+    b.querySelector(".area-name").textContent = name;
+    b.querySelector(".area-desc").textContent = desc;
+    b.addEventListener("click", () => toggle(name));
+    host.appendChild(b);
+  });
+}
+
+/* ----------------------------------------------------------------- picking */
+function toggle(name) {
+  const at = picks.indexOf(name);
+  if (at !== -1) picks.splice(at, 1);
+  else if (picks.length < PICK_COUNT) picks.push(name);
+  else return flash(`You already have ${PICK_COUNT}. Remove one first.`);
+  render();
+}
+
+function move(i, delta) {
+  const j = i + delta;
+  if (j < 0 || j >= picks.length) return;
+  [picks[i], picks[j]] = [picks[j], picks[i]];
+  render();
+}
+
+function render() {
+  const full = picks.length >= PICK_COUNT;
+  document.querySelectorAll(".area").forEach((area) => {
+    const rank = picks.indexOf(area.dataset.area);
+    area.setAttribute("aria-pressed", String(rank !== -1));
+    area.dataset.full = String(full);
+    if (rank !== -1) area.querySelector(".rank-dot").textContent = rank + 1;
+  });
+
+  const list = el("picks");
+  list.textContent = "";
+  picks.forEach((name, i) => {
+    const li = document.createElement("li");
+    const num = document.createElement("span");
+    num.className = "num";
+    num.textContent = i + 1;
+    const label = document.createElement("span");
+    label.className = "pick-name";
+    label.textContent = name;
+    li.append(num, label,
+      miniBtn("↑", `Move ${name} up`, i === 0, () => move(i, -1)),
+      miniBtn("↓", `Move ${name} down`, i === picks.length - 1, () => move(i, 1)),
+      miniBtn("✕", `Remove ${name}`, false, () => toggle(name)));
+    list.appendChild(li);
+  });
+
+  const label = `${picks.length} of ${PICK_COUNT} chosen`;
+  el("picksEmpty").classList.toggle("hidden", picks.length > 0);
+  el("counter").textContent = label;
+  el("barCount").textContent = label;
+  el("barCount").classList.remove("err");
+  el("bar").style.width = `${(picks.length / PICK_COUNT) * 100}%`;
+  el("submit").disabled = picks.length !== PICK_COUNT;
+  el("barSubmit").disabled = picks.length !== PICK_COUNT;
+}
+
+function miniBtn(glyph, label, disabled, onClick) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "mini";
+  b.textContent = glyph;
+  b.title = label;
+  b.setAttribute("aria-label", label);
+  b.disabled = disabled;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function flash(msg, isError = true) {
+  const s = el("status");
+  s.textContent = msg;
+  s.classList.toggle("err", isError);
+  el("barCount").textContent = msg;
+  el("barCount").classList.toggle("err", isError);
+  clearTimeout(flash.t);
+  flash.t = setTimeout(() => { s.textContent = ""; s.classList.remove("err"); render(); }, 4000);
+}
+
+/* -------------------------------------------------------------- submission */
+function validId() {
+  const id = studentNumber();
+  const ok = ID_PATTERN.test(id);
+  el("studentId").setAttribute("aria-invalid", String(!ok));
+  el("idErr").textContent = ok ? ""
+    : id ? "That does not look like a student number — digits only, no letters or spaces."
+         : "Enter your student number before submitting.";
+  el("idErr").classList.toggle("hidden", ok);
+  return ok;
+}
+
+function referenceCode() {
+  const digits = picks.map((name) => String(INDEX_OF.get(name) + 1).padStart(2, "0")).join("");
+  return `PT-${studentNumber()}-${digits}`;
+}
+
+async function send() {
+  if (sending) return;
+  if (el("website").value) return;                       // honeypot: bot, drop silently
+  if (picks.length !== PICK_COUNT || new Set(picks).size !== PICK_COUNT) {
+    return flash(`Pick exactly ${PICK_COUNT} different areas before submitting.`);
+  }
+  if (!validId()) {
+    el("studentId").focus();
+    return flash("Check your student number before submitting.");
+  }
+
+  sending = true;
+  el("submit").disabled = true;
+  flash("Sending…", false);
+
+  const body = new URLSearchParams();
+  body.append(ENTRY.studentNumber, studentNumber());
+  picks.forEach((name, i) => body.append(ENTRY.ranks[i], name));
+
+  try {
+    if (DRY_RUN) console.warn("Dry run — form endpoint not configured. Would send:", body.toString());
+    else await fetch(FORM_ENDPOINT, { method: "POST", mode: "no-cors", body });
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({ id: studentNumber(), at: Date.now(), picks }));
+    } catch {}
+    showDone();
+  } catch (err) {
+    sending = false;
+    el("submit").disabled = false;
+    flash("Could not send — check your connection and try again.");
+  }
+}
+
+function showDone() {
+  el("app").classList.add("hidden");
+  el("bottombar").classList.add("hidden");
+  const list = el("doneList");
+  list.textContent = "";
+  picks.forEach((name) => {
+    const li = document.createElement("li");
+    li.textContent = name;
+    list.appendChild(li);
+  });
+  el("ref").textContent = referenceCode();
+  el("done").classList.remove("hidden");
+  window.scrollTo(0, 0);
+}
+
+/* --------------------------------------------------------------- banners */
+function banner(kind, title, text, actionLabel, onAction) {
+  const d = document.createElement("div");
+  d.className = `banner ${kind}`;
+  const strong = document.createElement("strong");
+  strong.textContent = title;
+  const p = document.createElement("p");
+  p.textContent = text;
+  d.append(strong, p);
+  if (actionLabel) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn";
+    b.style.marginTop = "10px";
+    b.textContent = actionLabel;
+    b.addEventListener("click", () => { d.remove(); onAction(); });
+    d.appendChild(b);
+  }
+  el("banners").appendChild(d);
+}
+
+function priorSubmission() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch { return null; }
+}
+
+/* ------------------------------------------------------------------- init */
+buildAreas();
+render();
+
+el("studentId").addEventListener("input", () => { if (el("idErr").textContent) validId(); });
+
+function openReview() {
+  if (!validId()) {
+    el("studentId").focus();
+    el("studentId").scrollIntoView({ block: "center", behavior: "smooth" });
+    return flash("Enter your student number before submitting.");
+  }
+  const list = el("reviewList");
+  list.textContent = "";
+  picks.forEach((name) => {
+    const li = document.createElement("li");
+    li.textContent = name;
+    list.appendChild(li);
+  });
+  el("reviewId").textContent = studentNumber();
+  el("review").showModal();
+}
+el("submit").addEventListener("click", openReview);
+el("barSubmit").addEventListener("click", openReview);
+el("review").addEventListener("close", () => { if (el("review").returnValue === "ok") send(); });
+
+const prior = priorSubmission();
+const priorPicks = Array.isArray(prior?.picks)
+  ? prior.picks.filter((name) => INDEX_OF.has(name)).slice(0, PICK_COUNT)
+  : [];
+if (prior && priorPicks.length) {
+  if (ID_PATTERN.test(prior.id || "")) el("studentId").value = prior.id;
+  const when = new Date(prior.at).toLocaleString();
+  banner("", "You have already submitted from this device",
+    `Last submitted ${when}${prior.id ? ` for student number ${prior.id}` : ""}. `
+    + "Submitting again replaces it — only your most recent answer counts.",
+    "Restore my previous choices",
+    () => { picks = priorPicks; render(); });
+}
+</script>
+</body>
+</html>
