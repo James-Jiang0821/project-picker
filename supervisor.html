@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Supervisor Keyword Tiering</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --ink: #1f2933;
+    --muted: #667381;
+    --line: #dfe3e8;
+    --accent: #3b5bdb;
+    --accent-ink: #ffffff;
+    --ok: #2f9e44;
+    --warn: #b54708;
+    --err: #c92a2a;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 8px 24px rgba(16, 24, 40, .06);
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181d;
+      --panel: #1c2127;
+      --ink: #e7ebf0;
+      --muted: #9aa5b1;
+      --line: #2c333c;
+      --accent: #7c93f5;
+      --accent-ink: #10141a;
+      --ok: #63c77b;
+      --warn: #e8a33d;
+      --err: #ff8080;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 18px 120px; }
+  header h1 { font-size: 24px; margin: 0 0 6px; }
+  header p { margin: 0 0 4px; color: var(--muted); max-width: 70ch; }
+  .rule { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
+  .tierkey { margin: 10px 0 0; padding-left: 20px; color: var(--muted); max-width: 70ch; }
+  .tierkey li { padding: 2px 0; }
+  .tierkey b { color: var(--ink); }
+
+  .banner {
+    border: 1px solid var(--line); border-left: 4px solid var(--warn);
+    background: var(--panel); border-radius: var(--radius);
+    padding: 12px 14px; margin: 16px 0; box-shadow: var(--shadow);
+  }
+  .banner.err { border-left-color: var(--err); }
+  .banner strong { display: block; margin-bottom: 2px; }
+  .banner p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .idcard {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 14px 15px; margin-top: 16px; max-width: 460px;
+  }
+  .idcard + .idcard { margin-top: 12px; }
+  .idcard label { display: block; font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .idcard select, .idcard input {
+    width: 100%; padding: 10px 12px; font-size: 16px;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--bg); color: var(--ink);
+  }
+  .idcard select:focus, .idcard input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .idcard [aria-invalid="true"] { border-color: var(--err); }
+  .idcard .hint { font-size: 13px; color: var(--muted); margin: 7px 0 0; }
+  .idcard .iderr { font-size: 13px; color: var(--err); margin: 7px 0 0; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 22px; align-items: start; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .side { order: -1; position: static; }
+    .side .btn.primary, .side .status { display: none; }
+  }
+
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .search { flex: 1 1 240px; position: relative; }
+  .search input {
+    width: 100%; padding: 10px 12px; font-size: 15px;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--panel); color: var(--ink);
+  }
+  .search input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .btn {
+    padding: 10px 14px; font-size: 14px; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--panel); color: var(--ink);
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.primary:disabled { opacity: .45; cursor: not-allowed; border-color: var(--line); }
+  .btn.primary:disabled:hover { border-color: var(--line); }
+
+  .cat {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    margin-bottom: 12px; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .cat-head {
+    width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
+    padding: 13px 15px; background: none; border: 0; cursor: pointer;
+    font-size: 16px; font-weight: 700; color: var(--ink);
+  }
+  .cat-head:hover { background: rgba(127, 127, 127, .07); }
+  .swatch { width: 10px; height: 22px; border-radius: 3px; flex: none; }
+  .cat-count { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .chev { transition: transform .15s ease; color: var(--muted); font-size: 13px; }
+  .cat[data-open="true"] .chev { transform: rotate(90deg); }
+  .cat-body { display: none; padding: 0 15px 14px; }
+  .cat[data-open="true"] .cat-body { display: block; }
+  .sub { margin-top: 10px; }
+  .sub h3 {
+    font-size: 12px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 8px; font-weight: 700;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 11px; font-size: 14px; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 999px;
+    background: transparent; color: var(--ink); text-align: left;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+  .chip[data-full="true"]:not([aria-pressed="true"]) { opacity: .45; }
+  .tier-dot {
+    display: none; min-width: 19px; height: 19px; line-height: 19px; text-align: center;
+    border-radius: 50%; font-size: 12px; font-weight: 700;
+    background: var(--accent-ink); color: var(--accent);
+  }
+  .chip[aria-pressed="true"] .tier-dot { display: inline-block; }
+  .chip.hidden { display: none; }
+  .sub.hidden, .cat.hidden { display: none; }
+
+  .side { position: sticky; top: 18px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 15px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 3px; }
+  .card .hint { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+  .progress { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-bottom: 13px; }
+  .progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .18s ease; }
+  ul.picks { list-style: none; margin: 0 0 13px; padding: 0; }
+  ul.picks li {
+    display: flex; align-items: center; gap: 8px; padding: 8px 0;
+    border-bottom: 1px dashed var(--line);
+  }
+  ul.picks li:last-child { border-bottom: 0; }
+  .pick-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+  .pick-name.untiered { color: var(--muted); font-style: italic; }
+  .tiers { display: flex; gap: 3px; flex: none; }
+  .tier {
+    width: 27px; height: 27px; padding: 0; line-height: 1;
+    border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+    background: transparent; color: var(--muted); font-size: 12px; font-weight: 700;
+  }
+  .tier:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .tier[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .tier:disabled { opacity: .3; cursor: not-allowed; }
+  .mini {
+    flex: none; width: 25px; height: 25px; padding: 0; line-height: 1;
+    border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+    background: transparent; color: var(--muted); font-size: 13px;
+  }
+  .mini:hover { border-color: var(--err); color: var(--err); }
+  .empty { color: var(--muted); font-size: 14px; padding: 8px 0 14px; }
+  .side .btn.primary { width: 100%; }
+  .status { font-size: 13px; margin-top: 9px; text-align: center; color: var(--muted); }
+  .status.err { color: var(--err); }
+  .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+  /* Narrow screens put the tiering card above the tree, so the submit control
+     moves to a bar that stays in reach while scrolling the keywords. */
+  .bottombar {
+    display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    align-items: center; gap: 12px; padding: 11px 14px calc(11px + env(safe-area-inset-bottom));
+    background: var(--panel); border-top: 1px solid var(--line);
+    box-shadow: 0 -4px 18px rgba(16, 24, 40, .10);
+  }
+  .bottombar .count { font-size: 14px; font-weight: 600; }
+  .bottombar .count.err { color: var(--err); font-weight: 500; }
+  .bottombar .btn { margin-left: auto; padding: 13px 18px; }  /* 44px tap target */
+  /* Must come after the rules above: media queries add no specificity, so an
+     earlier @media display:flex loses to the later .bottombar display:none. */
+  @media (max-width: 900px) { .bottombar { display: flex; } }
+
+  dialog {
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 0;
+    background: var(--panel); color: var(--ink);
+    max-width: 460px; width: calc(100% - 32px); box-shadow: var(--shadow);
+  }
+  dialog::backdrop { background: rgba(10, 14, 20, .55); }
+  .dlg { padding: 20px; }
+  .dlg h2 { margin: 0 0 4px; font-size: 18px; }
+  .dlg p { color: var(--muted); margin: 0 0 14px; font-size: 14px; }
+  .dlg-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .group { margin: 0 0 14px; }
+  .group h3 { font-size: 13px; margin: 0 0 5px; }
+  .group ul { margin: 0; padding-left: 20px; }
+  .group li { padding: 2px 0; }
+
+  .done { text-align: center; padding: 50px 18px; }
+  .done .tick {
+    width: 60px; height: 60px; line-height: 60px; margin: 0 auto 16px;
+    border-radius: 50%; background: var(--ok); color: #fff; font-size: 30px;
+  }
+  .done h1 { font-size: 22px; margin: 0 0 8px; }
+  .done p { color: var(--muted); max-width: 52ch; margin: 0 auto 10px; }
+  .done .summary {
+    text-align: left; display: inline-block; margin: 18px 0; padding: 16px 22px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  code.ref {
+    display: inline-block; font-size: 14px; padding: 5px 9px; margin-top: 4px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    overflow-wrap: anywhere;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="wrap" id="app">
+  <header>
+    <h1>Tier your project keywords</h1>
+    <p>Students pick and rank the areas they want to work in. This page collects the other half of the
+       match: <strong>your seven keywords</strong> and how central each one is to your work.</p>
+    <p>Your current seven are filled in for you once you select your name — they are a starting point, so
+       swap any that are out of date. Then set a tier on each:</p>
+    <ol class="tierkey">
+      <li><b>Tier 1 — main domain.</b> What you know best and most want to supervise. Up to three.</li>
+      <li><b>Tier 2 — secondary domain.</b> Comfortably within your work.</li>
+      <li><b>Tier 3 — general knowledge.</b> You could supervise it, but it is not your focus.</li>
+    </ol>
+
+    <div class="idcard">
+      <label for="supervisor">Your name</label>
+      <select id="supervisor" aria-describedby="nameHint">
+        <option value="">Select your name…</option>
+      </select>
+      <p class="hint" id="nameHint">Selecting your name loads your current keywords.</p>
+      <p class="iderr hidden" id="nameErr" role="alert"></p>
+    </div>
+
+    <div class="idcard">
+      <label for="cap">How many students can you take?</label>
+      <input id="cap" type="number" inputmode="numeric" min="1" max="20" step="1"
+             placeholder="e.g. 5" autocomplete="off" aria-describedby="capHint">
+      <p class="hint" id="capHint">Your maximum for this allocation round.</p>
+      <p class="iderr hidden" id="capErr" role="alert"></p>
+    </div>
+  </header>
+
+  <div id="banners"></div>
+  <hr class="rule">
+
+  <div class="layout">
+    <main>
+      <div class="toolbar">
+        <div class="search">
+          <input id="search" type="search" placeholder="Search keywords…" autocomplete="off"
+                 aria-label="Search keywords">
+        </div>
+        <button class="btn" id="expandAll" type="button">Expand all</button>
+        <button class="btn" id="collapseAll" type="button">Collapse all</button>
+      </div>
+      <div id="tree"></div>
+      <p class="empty hidden" id="noMatch">No keyword matches that search.</p>
+    </main>
+
+    <aside class="side">
+      <div class="card">
+        <h2>Your keywords</h2>
+        <p class="hint" id="counter">0 of 7 chosen</p>
+        <div class="progress"><span id="bar"></span></div>
+        <ul class="picks" id="picks"></ul>
+        <p class="empty" id="picksEmpty">Select your name above to load your current keywords.</p>
+
+        <input class="hp" id="website" name="website" type="text" tabindex="-1" autocomplete="off"
+               aria-hidden="true">
+
+        <button class="btn primary" id="submit" type="button" disabled>Review and submit</button>
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="bottombar" id="bottombar">
+  <span class="count" id="barCount">0 of 7 chosen</span>
+  <button class="btn primary" id="barSubmit" type="button" disabled>Review and submit</button>
+</div>
+
+<div class="wrap done hidden" id="done">
+  <div class="tick">✓</div>
+  <h1>Submission received</h1>
+  <p>Your keywords and tiers have been recorded:</p>
+  <div class="summary" id="doneSummary"></div>
+  <p>You can change your mind any time before the deadline — reopen this page and submit again under the
+     same name. Only your most recent submission counts.</p>
+  <p>Reference code (keep this in case anything needs checking):<br><code class="ref" id="ref"></code></p>
+</div>
+
+<dialog id="review">
+  <form method="dialog" class="dlg">
+    <h2>Confirm your keywords</h2>
+    <p>Submitting as <strong id="reviewName"></strong>, taking up to <strong id="reviewCap"></strong> students.</p>
+    <div id="reviewGroups"></div>
+    <div class="dlg-actions">
+      <button class="btn" value="cancel" type="submit">Go back</button>
+      <button class="btn primary" value="ok" type="submit" id="confirmBtn">Submit</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+/* ------------------------------------------------------------------ config
+   Google Form acts as a silent data sink: the supervisor never sees it.
+   Run tools/wire_form.py with the responder link to fill these in, or read the
+   name="entry.NNNNNNN" attributes off the live form by hand. The endpoint is
+   the form URL with /viewform replaced by /formResponse.
+   Until the placeholders below are replaced the page runs in dry-run mode:
+   everything works, nothing is sent. */
+const FORM_ENDPOINT = "https://docs.google.com/forms/d/e/1FAIpQLSeT4IAAuiJiQXnZWi3IublQlfZ6uQBRp08eYwzyBoHGP49BFQ/formResponse";
+const ENTRY = {
+  supervisor: "entry.1787813082",
+  cap: "entry.1144424005",
+  keywords: [
+    "entry.554962894",
+    "entry.1221750214",
+    "entry.468630236",
+    "entry.1198561267",
+    "entry.632833253",
+    "entry.1535634804",
+    "entry.1079325613",
+  ],
+  tiers: [
+    "entry.2003404308",
+    "entry.1600977543",
+    "entry.866363802",
+    "entry.1506170741",
+    "entry.1659240171",
+    "entry.1957588603",
+    "entry.769996760",
+  ],
+};
+const PICK_COUNT = 7;
+/* At least one T1 so every supervisor declares a main domain, at most three so
+   nobody can flatten their profile — cosine normalises, so all-one-tier scores
+   identically to all-T1 and would hand out an even weight everywhere. */
+const MIN_T1 = 1;
+const MAX_T1 = 3;
+const MAX_CAP = 20;
+const DRY_RUN = /PASTE_/.test(FORM_ENDPOINT + Object.values(ENTRY).flat().join(""));
+
+/* --------------------------------------------------------------- taxonomy
+   93 keywords, tree order. Must stay in exact-string sync with
+   analysis/figures/taxonomy/keywords_paste_order.txt. */
+const TAXONOMY = [
+  ["Biomedical & Healthcare Engineering", "#0F9E99", [
+    ["Anatomy & Physiology", ["blood flow", "cardiovascular system", "hemodynamics", "muscle",
+      "nervous system", "pregnancy", "skeletal system"]],
+    ["Clinical & Pathology", ["dialysis", "disease progression", "healthcare sector",
+      "infectious diseases", "neurology", "surgery", "tumors"]],
+    ["Bioengineering & Treatments", ["cells", "drug delivery", "gyration vessel",
+      "tissue engineering"]],
+  ]],
+  ["Mechanical & Structural Engineering", "#3B5BDB", [
+    ["Fluid & Thermodynamics", ["aerodynamics", "applied thermodynamics",
+      "computational fluid dynamics", "flame dynamics", "hydrodynamic analysis", "turbulent flow",
+      "vortex mode"]],
+    ["Mechanics & Analysis", ["deformation", "elasticity/plasticity", "fatigue mechanics",
+      "finite element analysis", "joint mechanics", "loading mechanisms", "numerical simulations",
+      "stress analysis", "vibration analysis", "weight criteria"]],
+    ["Vehicles & Transport", ["aircraft structures", "automotive engineering", "drone platform",
+      "hybrid vehicles", "propulsion systems", "ship design", "underwater vehicles",
+      "wing movement"]],
+  ]],
+  ["Materials Science & Manufacturing", "#E8890C", [
+    ["Materials", ["alloys", "composite materials", "fiber materials", "liquid crystal elastomers",
+      "metallic materials", "metamaterials", "polymers"]],
+    ["Material Properties & Testing", ["anisotropy", "crystalline structures", "material testing",
+      "morphology", "phase transformation", "porosity"]],
+    ["Manufacturing & Design Techniques", ["additive manufacturing", "chain manufacturing",
+      "generative design", "molecular engineering", "topological optimization"]],
+  ]],
+  ["Computing, Data & Robotics", "#7048E8", [
+    ["AI & Algorithms", ["algorithm design", "image segmentation", "machine learning",
+      "neural network"]],
+    ["Robotics & Automation", ["adaptable environment", "autonomous navigation", "obstacle detection",
+      "path planning", "robotics"]],
+    ["Sensing & Electronics", ["electronics", "tomography", "ultrasound imaging"]],
+  ]],
+  ["Energy, Environment & Sustainability", "#2F9E44", [
+    ["Power & Energy Systems", ["battery", "combustion engines", "fossil fuels", "heat turbines",
+      "hydrogen fuel cells", "power generation", "renewable energy"]],
+    ["Environment & Infrastructure", ["biofuels", "disposables", "emission reduction",
+      "life cycle engineering", "ocean engineering", "offshore infrastructure", "pipe systems",
+      "plastic recycling", "pyrolysis"]],
+  ]],
+  ["Project & Industry Management", "#495057", [
+    ["General Strategy", ["experimental project", "industrial applications", "marketing strategy",
+      "technical specification"]],
+  ]],
+];
+
+const KEYWORDS = TAXONOMY.flatMap(([, , subs]) => subs.flatMap(([, leaves]) => leaves));
+const INDEX_OF = new Map(KEYWORDS.map((k, i) => [k, i]));
+
+/* ------------------------------------------------------- supervisor roster
+   The 68 from keywords_list/, surname order, with the keywords each already
+   has. Regenerate from that file if the roster changes. */
+const SUPERVISORS = [
+  ["Abad Guaman, Sara", ["robotics", "underwater vehicles", "joint mechanics", "adaptable environment", "morphology", "weight criteria", "hybrid vehicles"]],
+  ["Abolfathi, Ali", ["wing movement", "finite element analysis", "drone platform", "muscle", "material testing", "experimental project", "tomography"]],
+  ["Asef, Pedram", ["drone platform", "power generation", "robotics", "weight criteria", "loading mechanisms", "propulsion systems", "experimental project"]],
+  ["Balabani, Stavroula", ["computational fluid dynamics", "machine learning", "cardiovascular system", "experimental project", "neural network", "ultrasound imaging", "blood flow"]],
+  ["Balachandran, Ramanarayanan", ["combustion engines", "hydrogen fuel cells", "flame dynamics", "heat turbines", "emission reduction", "fossil fuels", "vibration analysis"]],
+  ["Barnes, Morgan", ["life cycle engineering", "crystalline structures", "polymers", "liquid crystal elastomers", "heat turbines", "anisotropy", "material testing"]],
+  ["Bele, Eral", ["fatigue mechanics", "material testing", "experimental project", "automotive engineering", "weight criteria", "finite element analysis", "stress analysis"]],
+  ["Bosi, Federico", ["weight criteria", "material testing", "experimental project", "loading mechanisms", "deformation", "renewable energy", "machine learning"]],
+  ["Bucknall, Richard", ["fossil fuels", "power generation", "renewable energy", "battery", "ship design", "propulsion systems", "cells"]],
+  ["Burriesci, Gaetano", ["tissue engineering", "cardiovascular system", "blood flow", "stress analysis", "hemodynamics", "computational fluid dynamics", "loading mechanisms"]],
+  ["Cai, Shun", ["machine learning", "propulsion systems", "power generation", "hybrid vehicles", "electronics", "generative design", "numerical simulations"]],
+  ["Capelli, Claudio", ["disease progression", "wing movement", "cardiovascular system", "emission reduction", "tumors", "underwater vehicles", "stress analysis"]],
+  ["Castrejon Pita, Jose Rafael", ["ship design", "industrial applications", "cardiovascular system", "liquid crystal elastomers", "obstacle detection", "composite materials", "tumors"]],
+  ["Czerski, Helen", ["ocean engineering", "plastic recycling", "underwater vehicles", "life cycle engineering", "obstacle detection", "disposables", "battery"]],
+  ["Dasari, Bhagyalakshmi", ["composite materials", "metallic materials", "life cycle engineering", "battery", "vibration analysis", "plastic recycling", "emission reduction"]],
+  ["Diaz, Vanessa", ["cardiovascular system", "stress analysis", "hemodynamics", "algorithm design", "machine learning", "tomography", "disease progression"]],
+  ["Ducci, Andrea", ["cells", "machine learning", "power generation", "hydrogen fuel cells", "renewable energy", "fossil fuels", "stress analysis"]],
+  ["Eames, Ian", ["pipe systems", "stress analysis", "applied thermodynamics", "experimental project", "deformation", "finite element analysis", "cardiovascular system"]],
+  ["Edirisinghe, Mohan", ["fiber materials", "polymers", "healthcare sector", "gyration vessel", "tissue engineering", "experimental project", "morphology"]],
+  ["Everts, Marilize", ["heat turbines", "renewable energy", "electronics", "computational fluid dynamics", "numerical simulations", "turbulent flow", "hydrodynamic analysis"]],
+  ["Fromme, Paul", ["renewable energy", "heat turbines", "offshore infrastructure", "finite element analysis", "fatigue mechanics", "ultrasound imaging", "anisotropy"]],
+  ["Galindo-Nava, Enrique", ["alloys", "hydrogen fuel cells", "machine learning", "deformation", "metallic materials", "loading mechanisms", "heat turbines"]],
+  ["Gani, Zareena", ["fossil fuels", "heat turbines", "renewable energy", "marketing strategy", "machine learning", "disposables", "combustion engines"]],
+  ["Grech La Rosa, Andrea", ["plastic recycling", "life cycle engineering", "ship design", "heat turbines", "machine learning", "disposables", "underwater vehicles"]],
+  ["Greig, Alistair", ["renewable energy", "vibration analysis", "vortex mode", "robotics", "underwater vehicles", "heat turbines", "fatigue mechanics"]],
+  ["Guo, Liwei", ["infectious diseases", "disease progression", "tomography", "skeletal system", "stress analysis", "tissue engineering", "emission reduction"]],
+  ["Hamadeh, Lama", ["ocean engineering", "computational fluid dynamics", "renewable energy", "underwater vehicles", "material testing", "machine learning", "obstacle detection"]],
+  ["Hanson, Ben", ["pregnancy", "deformation", "finite element analysis", "stress analysis", "power generation", "computational fluid dynamics", "plastic recycling"]],
+  ["Haqshenas, Reza", ["cells", "ultrasound imaging", "computational fluid dynamics", "numerical simulations", "machine learning", "finite element analysis", "pipe systems"]],
+  ["Hellier, Paul", ["fossil fuels", "emission reduction", "combustion engines", "renewable energy", "biofuels", "hydrogen fuel cells", "additive manufacturing"]],
+  ["Huang, Jie", ["tissue engineering", "tumors", "cells", "metallic materials", "skeletal system", "elasticity/plasticity", "infectious diseases"]],
+  ["Jayasinghe, Suwan", ["fiber materials", "polymers", "drug delivery", "cells", "stress analysis", "composite materials", "hydrodynamic analysis"]],
+  ["Jurado Pontes, Nelia", ["heat turbines", "power generation", "renewable energy", "hydrogen fuel cells", "pyrolysis", "plastic recycling", "finite element analysis"]],
+  ["Kabi, Prasenjit", ["phase transformation", "renewable energy", "heat turbines", "power generation", "applied thermodynamics", "cardiovascular system", "underwater vehicles"]],
+  ["Klettner, Christian", ["hydrodynamic analysis", "computational fluid dynamics", "obstacle detection", "vibration analysis", "wing movement", "numerical simulations", "elasticity/plasticity"]],
+  ["Lee, Peter", ["finite element analysis", "joint mechanics", "tomography", "porosity", "cardiovascular system", "crystalline structures", "metallic materials"]],
+  ["Leung, Chu Lun Alex", ["additive manufacturing", "material testing", "neural network", "image segmentation", "machine learning", "experimental project", "porosity"]],
+  ["Liu, Yuanchang", ["robotics", "obstacle detection", "autonomous navigation", "algorithm design", "drone platform", "path planning", "machine learning"]],
+  ["Luo, Kai", ["heat turbines", "power generation", "hydrogen fuel cells", "turbulent flow", "fossil fuels", "flame dynamics", "battery"]],
+  ["Marghoub, Arsalan", ["finite element analysis", "material testing", "tissue engineering", "cardiovascular system", "skeletal system", "joint mechanics", "emission reduction"]],
+  ["Matharu, Rupy", ["fiber materials", "molecular engineering", "material testing", "infectious diseases", "life cycle engineering", "polymers", "gyration vessel"]],
+  ["Michalska, Martyna", ["infectious diseases", "cells", "stress analysis", "renewable energy", "computational fluid dynamics", "tomography", "metamaterials"]],
+  ["Miodownik, Mark", ["plastic recycling", "robotics", "industrial applications", "electronics", "chain manufacturing", "machine learning", "heat turbines"]],
+  ["Moazen, Mehran", ["finite element analysis", "tissue engineering", "joint mechanics", "tomography", "morphology", "disease progression", "image segmentation"]],
+  ["Moeendarbary, Emad", ["cells", "tumors", "life cycle engineering", "tissue engineering", "blood flow", "drug delivery", "deformation"]],
+  ["Morse, Llewellyn", ["composite materials", "finite element analysis", "aircraft structures", "weight criteria", "plastic recycling", "wing movement", "elasticity/plasticity"]],
+  ["Muk-Pavic, Ema", ["ocean engineering", "plastic recycling", "offshore infrastructure", "life cycle engineering", "ship design", "renewable energy", "hydrogen fuel cells"]],
+  ["Paik, Jeom", ["healthcare sector", "fatigue mechanics", "life cycle engineering", "finite element analysis", "cardiovascular system", "tumors", "ultrasound imaging"]],
+  ["Pawling, Rachel", ["fossil fuels", "ship design", "robotics", "emission reduction", "ocean engineering", "heat turbines", "renewable energy"]],
+  ["Peach, Thomas", ["neurology", "cardiovascular system", "blood flow", "hemodynamics", "dialysis", "disease progression", "tissue engineering"]],
+  ["Saffari, Nader", ["tumors", "ultrasound imaging", "tissue engineering", "drug delivery", "skeletal system", "experimental project", "heat turbines"]],
+  ["Salaris, Nikolaos", ["healthcare sector", "electronics", "obstacle detection", "disease progression", "polymers", "infectious diseases", "tissue engineering"]],
+  ["Shipley, Rebecca", ["nervous system", "tissue engineering", "blood flow", "cells", "surgery", "generative design", "molecular engineering"]],
+  ["Simpson, Peter", ["marketing strategy", "generative design", "topological optimization", "additive manufacturing", "life cycle engineering", "fiber materials", "weight criteria"]],
+  ["Singh, Vikaramjeet", ["drug delivery", "machine learning", "tumors", "experimental project", "healthcare sector", "molecular engineering", "power generation"]],
+  ["Smith, Tom", ["underwater vehicles", "experimental project", "ultrasound imaging", "ocean engineering", "aerodynamics", "heat turbines", "renewable energy"]],
+  ["Tan, PJ", ["stress analysis", "loading mechanisms", "joint mechanics", "numerical simulations", "finite element analysis", "material testing", "deformation"]],
+  ["Thomas, Giles", ["marketing strategy", "underwater vehicles", "drone platform", "chain manufacturing", "ship design", "robotics", "obstacle detection"]],
+  ["Tiwari, Manish", ["electronics", "emission reduction", "obstacle detection", "material testing", "disease progression", "healthcare sector", "battery"]],
+  ["Torii, Ryo", ["cardiovascular system", "tissue engineering", "stress analysis", "disease progression", "machine learning", "experimental project", "blood flow"]],
+  ["Walsh, Claire", ["image segmentation", "blood flow", "machine learning", "phase transformation", "tomography", "dialysis", "obstacle detection"]],
+  ["Wilson, Abigail", ["disease progression", "surgery", "finite element analysis", "tissue engineering", "neural network", "material testing", "obstacle detection"]],
+  ["Wojcik, Adam", ["robotics", "industrial applications", "stress analysis", "weight criteria", "renewable energy", "power generation", "generative design"]],
+  ["Wu, Guoxiong", ["renewable energy", "heat turbines", "offshore infrastructure", "vortex mode", "hydrodynamic analysis", "underwater vehicles", "ocean engineering"]],
+  ["Wu, Peng", ["hybrid vehicles", "propulsion systems", "underwater vehicles", "obstacle detection", "fossil fuels", "robotics", "battery"]],
+  ["Wurdemann, Helge", ["robotics", "tissue engineering", "algorithm design", "deformation", "autonomous navigation", "cardiovascular system", "material testing"]],
+  ["Yearwood, Konrad", ["heat turbines", "power generation", "pipe systems", "finite element analysis", "renewable energy", "marketing strategy", "life cycle engineering"]],
+  ["Zangeneh, Mehrdad", ["hydrogen fuel cells", "power generation", "renewable energy", "life cycle engineering", "aircraft structures", "heat turbines", "technical specification"]],
+];
+
+const KEYWORDS_OF = new Map(SUPERVISORS);
+
+/* ------------------------------------------------------------------ state
+   picks holds {kw, tier}; tier 0 means chosen but not yet tiered. */
+const STORE_KEY = "projectallocator:supervisor";
+let picks = [];
+let sending = false;
+
+const el = (id) => document.getElementById(id);
+const supervisorName = () => el("supervisor").value;
+const capValue = () => el("cap").value.trim();
+const t1Count = () => picks.filter((p) => p.tier === 1).length;
+
+/* ------------------------------------------------------------------ build */
+function buildNames() {
+  const sel = el("supervisor");
+  SUPERVISORS.forEach(([name]) => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    sel.appendChild(opt);
+  });
+}
+
+function buildTree() {
+  const tree = el("tree");
+  TAXONOMY.forEach(([name, colour, subs], i) => {
+    const total = subs.reduce((n, [, leaves]) => n + leaves.length, 0);
+    const cat = document.createElement("section");
+    cat.className = "cat";
+    cat.dataset.open = i === 0 ? "true" : "false";
+
+    const head = document.createElement("button");
+    head.type = "button";
+    head.className = "cat-head";
+    head.setAttribute("aria-expanded", cat.dataset.open);
+    head.innerHTML = `<span class="swatch" style="background:${colour}"></span>
+                      <span class="cat-name"></span>
+                      <span class="cat-count">${total}</span>
+                      <span class="chev">▶</span>`;
+    head.querySelector(".cat-name").textContent = name;
+    head.addEventListener("click", () => {
+      const open = cat.dataset.open !== "true";
+      cat.dataset.open = String(open);
+      head.setAttribute("aria-expanded", String(open));
+    });
+
+    const body = document.createElement("div");
+    body.className = "cat-body";
+    subs.forEach(([subName, leaves]) => {
+      const sub = document.createElement("div");
+      sub.className = "sub";
+      const h3 = document.createElement("h3");
+      h3.textContent = subName;
+      const chips = document.createElement("div");
+      chips.className = "chips";
+      leaves.forEach((kw) => chips.appendChild(makeChip(kw, colour)));
+      sub.append(h3, chips);
+      body.appendChild(sub);
+    });
+
+    cat.append(head, body);
+    tree.appendChild(cat);
+  });
+}
+
+function makeChip(kw, colour) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "chip";
+  b.dataset.kw = kw;
+  b.setAttribute("aria-pressed", "false");
+  b.style.setProperty("--accent", colour);
+  const dot = document.createElement("span");
+  dot.className = "tier-dot";
+  const label = document.createElement("span");
+  label.textContent = kw;
+  b.append(dot, label);
+  b.addEventListener("click", () => toggle(kw));
+  return b;
+}
+
+/* ----------------------------------------------------------------- picking */
+function toggle(kw) {
+  const at = picks.findIndex((p) => p.kw === kw);
+  if (at !== -1) picks.splice(at, 1);
+  else if (picks.length < PICK_COUNT) picks.push({ kw, tier: 0 });
+  else return flash(`You already have ${PICK_COUNT}. Remove one first.`);
+  render();
+}
+
+function setTier(i, tier) {
+  if (tier === 1 && picks[i].tier !== 1 && t1Count() >= MAX_T1) {
+    return flash(`Only ${MAX_T1} keywords can be Tier 1. Move one down first.`);
+  }
+  picks[i].tier = tier;
+  render();
+}
+
+function loadRoster(name) {
+  const kws = KEYWORDS_OF.get(name) || [];
+  picks = kws.filter((kw) => INDEX_OF.has(kw)).map((kw) => ({ kw, tier: 0 }));
+  render();
+}
+
+/* Empty when ready to submit, otherwise the one thing still to fix. */
+function blocker() {
+  if (!supervisorName()) return "Select your name to begin.";
+  if (picks.length !== PICK_COUNT) {
+    const n = PICK_COUNT - picks.length;
+    return n > 0 ? `Choose ${n} more keyword${n === 1 ? "" : "s"}.`
+                 : `Remove ${-n} keyword${-n === 1 ? "" : "s"}.`;
+  }
+  const untiered = picks.filter((p) => !p.tier).length;
+  if (untiered) return `Set a tier on ${untiered} more keyword${untiered === 1 ? "" : "s"}.`;
+  if (t1Count() < MIN_T1) return `Mark at least ${MIN_T1} keyword as Tier 1.`;
+  if (t1Count() > MAX_T1) return `Only ${MAX_T1} keywords can be Tier 1.`;
+  if (!validCap()) return "Enter how many students you can take.";
+  return "";
+}
+
+function render() {
+  const full = picks.length >= PICK_COUNT;
+  document.querySelectorAll(".chip").forEach((chip) => {
+    const pick = picks.find((p) => p.kw === chip.dataset.kw);
+    chip.setAttribute("aria-pressed", String(Boolean(pick)));
+    chip.dataset.full = String(full);
+    if (pick) chip.querySelector(".tier-dot").textContent = pick.tier || "–";
+  });
+
+  const list = el("picks");
+  list.textContent = "";
+  const t1Full = t1Count() >= MAX_T1;
+  picks.forEach((pick, i) => {
+    const li = document.createElement("li");
+    const name = document.createElement("span");
+    name.className = `pick-name${pick.tier ? "" : " untiered"}`;
+    name.textContent = pick.kw;
+
+    const tiers = document.createElement("span");
+    tiers.className = "tiers";
+    [1, 2, 3].forEach((t) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "tier";
+      b.textContent = t;
+      b.title = `${pick.kw}: tier ${t}`;
+      b.setAttribute("aria-label", `${pick.kw}: tier ${t}`);
+      b.setAttribute("aria-pressed", String(pick.tier === t));
+      b.disabled = t === 1 && t1Full && pick.tier !== 1;
+      b.addEventListener("click", () => setTier(i, t));
+      tiers.appendChild(b);
+    });
+
+    const drop = document.createElement("button");
+    drop.type = "button";
+    drop.className = "mini";
+    drop.textContent = "✕";
+    drop.title = `Remove ${pick.kw}`;
+    drop.setAttribute("aria-label", `Remove ${pick.kw}`);
+    drop.addEventListener("click", () => toggle(pick.kw));
+
+    li.append(name, tiers, drop);
+    list.appendChild(li);
+  });
+
+  const tiered = picks.filter((p) => p.tier).length;
+  const label = picks.length === PICK_COUNT
+    ? `${tiered} of ${PICK_COUNT} tiered · ${t1Count()} of ${MAX_T1} Tier 1`
+    : `${picks.length} of ${PICK_COUNT} chosen`;
+  el("picksEmpty").classList.toggle("hidden", picks.length > 0);
+  el("counter").textContent = label;
+  el("barCount").textContent = label;
+  el("barCount").classList.remove("err");
+  el("bar").style.width = `${((picks.length + tiered) / (PICK_COUNT * 2)) * 100}%`;
+
+  const ready = !blocker();
+  el("submit").disabled = !ready;
+  el("barSubmit").disabled = !ready;
+}
+
+function flash(msg, isError = true) {
+  const s = el("status");
+  s.textContent = msg;
+  s.classList.toggle("err", isError);
+  el("barCount").textContent = msg;
+  el("barCount").classList.toggle("err", isError);
+  clearTimeout(flash.t);
+  flash.t = setTimeout(() => { s.textContent = ""; s.classList.remove("err"); render(); }, 4000);
+}
+
+/* ------------------------------------------------------------------ search */
+function applySearch(raw) {
+  const q = raw.trim().toLowerCase();
+  let hits = 0;
+  document.querySelectorAll(".cat").forEach((cat) => {
+    let catHits = 0;
+    cat.querySelectorAll(".sub").forEach((sub) => {
+      let subHits = 0;
+      sub.querySelectorAll(".chip").forEach((chip) => {
+        const match = !q || chip.dataset.kw.includes(q);
+        chip.classList.toggle("hidden", !match);
+        if (match) subHits++;
+      });
+      sub.classList.toggle("hidden", subHits === 0);
+      catHits += subHits;
+    });
+    cat.classList.toggle("hidden", catHits === 0);
+    if (q) {
+      cat.dataset.open = "true";
+      cat.querySelector(".cat-head").setAttribute("aria-expanded", "true");
+    }
+    hits += catHits;
+  });
+  el("noMatch").classList.toggle("hidden", hits > 0);
+}
+
+function setAllOpen(open) {
+  document.querySelectorAll(".cat").forEach((cat) => {
+    cat.dataset.open = String(open);
+    cat.querySelector(".cat-head").setAttribute("aria-expanded", String(open));
+  });
+}
+
+/* -------------------------------------------------------------- submission */
+function validName() {
+  const ok = Boolean(supervisorName());
+  el("supervisor").setAttribute("aria-invalid", String(!ok));
+  el("nameErr").textContent = ok ? "" : "Select your name from the list.";
+  el("nameErr").classList.toggle("hidden", ok);
+  return ok;
+}
+
+function validCap() {
+  const n = Number(capValue());
+  return /^\d+$/.test(capValue()) && n >= 1 && n <= MAX_CAP;
+}
+
+function showCapError() {
+  const ok = validCap();
+  el("cap").setAttribute("aria-invalid", String(!ok));
+  el("capErr").textContent = ok ? ""
+    : capValue() ? `Enter a whole number of students between 1 and ${MAX_CAP}.`
+                 : "Enter how many students you can take.";
+  el("capErr").classList.toggle("hidden", ok);
+  return ok;
+}
+
+/* Two digits of keyword index (1-based into data/keywords.txt) plus one of
+   tier, per keyword. Decodes with nothing but the pinned list. */
+function referenceCode() {
+  const digits = picks.map((p) => String(INDEX_OF.get(p.kw) + 1).padStart(2, "0") + p.tier).join("");
+  const who = String(SUPERVISORS.findIndex(([n]) => n === supervisorName()) + 1).padStart(2, "0");
+  return `PA-SUP${who}-${digits}`;
+}
+
+async function send() {
+  if (sending) return;
+  if (el("website").value) return;                       // honeypot: bot, drop silently
+  const stop = blocker();
+  if (stop) return flash(stop);
+  if (new Set(picks.map((p) => p.kw)).size !== PICK_COUNT) {
+    return flash(`Pick ${PICK_COUNT} different keywords before submitting.`);
+  }
+
+  sending = true;
+  el("submit").disabled = true;
+  flash("Sending…", false);
+
+  const body = new URLSearchParams();
+  body.append(ENTRY.supervisor, supervisorName());
+  body.append(ENTRY.cap, capValue());
+  picks.forEach((p, i) => {
+    body.append(ENTRY.keywords[i], p.kw);
+    body.append(ENTRY.tiers[i], String(p.tier));
+  });
+
+  try {
+    if (DRY_RUN) console.warn("Dry run — form endpoint not configured. Would send:", body.toString());
+    else await fetch(FORM_ENDPOINT, { method: "POST", mode: "no-cors", body });
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        name: supervisorName(), cap: capValue(), at: Date.now(), picks,
+      }));
+    } catch {}
+    showDone();
+  } catch (err) {
+    sending = false;
+    el("submit").disabled = false;
+    flash("Could not send — check your connection and try again.");
+  }
+}
+
+/* Grouped by tier: that is the readout that matters, not selection order. */
+function tierGroups(into) {
+  into.textContent = "";
+  [1, 2, 3].forEach((t) => {
+    const inTier = picks.filter((p) => p.tier === t);
+    if (!inTier.length) return;
+    const g = document.createElement("div");
+    g.className = "group";
+    const h = document.createElement("h3");
+    h.textContent = ["", "Tier 1 — main domain", "Tier 2 — secondary domain",
+                     "Tier 3 — general knowledge"][t];
+    const ul = document.createElement("ul");
+    inTier.forEach((p) => {
+      const li = document.createElement("li");
+      li.textContent = p.kw;
+      ul.appendChild(li);
+    });
+    g.append(h, ul);
+    into.appendChild(g);
+  });
+}
+
+function showDone() {
+  el("app").classList.add("hidden");
+  el("bottombar").classList.add("hidden");
+  tierGroups(el("doneSummary"));
+  const cap = document.createElement("p");
+  cap.style.margin = "0";
+  cap.textContent = `Taking up to ${capValue()} students.`;
+  el("doneSummary").appendChild(cap);
+  el("ref").textContent = referenceCode();
+  el("done").classList.remove("hidden");
+  window.scrollTo(0, 0);
+}
+
+/* --------------------------------------------------------------- banners */
+function banner(kind, title, text, actionLabel, onAction) {
+  const d = document.createElement("div");
+  d.className = `banner ${kind}`;
+  const strong = document.createElement("strong");
+  strong.textContent = title;
+  const p = document.createElement("p");
+  p.textContent = text;
+  d.append(strong, p);
+  if (actionLabel) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn";
+    b.style.marginTop = "10px";
+    b.textContent = actionLabel;
+    b.addEventListener("click", () => { d.remove(); onAction(); });
+    d.appendChild(b);
+  }
+  el("banners").appendChild(d);
+}
+
+function priorSubmission() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch { return null; }
+}
+
+/* ------------------------------------------------------------------- init */
+buildNames();
+buildTree();
+render();
+
+el("supervisor").addEventListener("change", () => {
+  validName();
+  loadRoster(supervisorName());
+});
+el("cap").addEventListener("input", () => { if (el("capErr").textContent) showCapError(); render(); });
+el("search").addEventListener("input", (e) => applySearch(e.target.value));
+el("expandAll").addEventListener("click", () => setAllOpen(true));
+el("collapseAll").addEventListener("click", () => setAllOpen(false));
+
+function openReview() {
+  if (!validName()) {
+    el("supervisor").focus();
+    el("supervisor").scrollIntoView({ block: "center", behavior: "smooth" });
+    return flash("Select your name before submitting.");
+  }
+  if (!showCapError()) {
+    el("cap").focus();
+    el("cap").scrollIntoView({ block: "center", behavior: "smooth" });
+    return flash("Enter how many students you can take.");
+  }
+  const stop = blocker();
+  if (stop) return flash(stop);
+  tierGroups(el("reviewGroups"));
+  el("reviewName").textContent = supervisorName();
+  el("reviewCap").textContent = capValue();
+  el("review").showModal();
+}
+el("submit").addEventListener("click", openReview);
+el("barSubmit").addEventListener("click", openReview);
+el("review").addEventListener("close", () => { if (el("review").returnValue === "ok") send(); });
+
+const prior = priorSubmission();
+const priorPicks = Array.isArray(prior?.picks)
+  ? prior.picks.filter((p) => p && INDEX_OF.has(p.kw)).slice(0, PICK_COUNT)
+  : [];
+if (prior && priorPicks.length && KEYWORDS_OF.has(prior.name)) {
+  const when = new Date(prior.at).toLocaleString();
+  banner("", "You have already submitted from this device",
+    `Last submitted ${when} for ${prior.name}. `
+    + "Submitting again replaces it — only your most recent answer counts.",
+    "Restore my previous answers",
+    () => {
+      el("supervisor").value = prior.name;
+      if (prior.cap) el("cap").value = prior.cap;
+      picks = priorPicks.map((p) => ({ kw: p.kw, tier: [1, 2, 3].includes(p.tier) ? p.tier : 0 }));
+      validName();
+      render();
+    });
+}
+</script>
+</body>
+</html>
