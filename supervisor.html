@@ -251,13 +251,6 @@
       <p class="iderr hidden" id="nameErr" role="alert"></p>
     </div>
 
-    <div class="idcard">
-      <label for="cap">How many students can you take?</label>
-      <input id="cap" type="number" inputmode="numeric" min="1" max="20" step="1"
-             placeholder="e.g. 5" autocomplete="off" aria-describedby="capHint">
-      <p class="hint" id="capHint">Your maximum for this allocation round.</p>
-      <p class="iderr hidden" id="capErr" role="alert"></p>
-    </div>
   </header>
 
   <div id="banners"></div>
@@ -313,7 +306,7 @@
 <dialog id="review">
   <form method="dialog" class="dlg">
     <h2>Confirm your keywords</h2>
-    <p>Submitting as <strong id="reviewName"></strong>, taking up to <strong id="reviewCap"></strong> students.</p>
+    <p>Submitting as <strong id="reviewName"></strong>.</p>
     <div id="reviewGroups"></div>
     <div class="dlg-actions">
       <button class="btn" value="cancel" type="submit">Go back</button>
@@ -333,7 +326,6 @@
 const FORM_ENDPOINT = "https://docs.google.com/forms/d/e/1FAIpQLSeT4IAAuiJiQXnZWi3IublQlfZ6uQBRp08eYwzyBoHGP49BFQ/formResponse";
 const ENTRY = {
   supervisor: "entry.1787813082",
-  cap: "entry.1144424005",
   keywords: [
     "entry.554962894",
     "entry.1221750214",
@@ -359,7 +351,6 @@ const PICK_COUNT = 7;
    identically to all-T1 and would hand out an even weight everywhere. */
 const MIN_T1 = 1;
 const MAX_T1 = 3;
-const MAX_CAP = 20;
 const DRY_RUN = /PASTE_/.test(FORM_ENDPOINT + Object.values(ENTRY).flat().join(""));
 
 /* --------------------------------------------------------------- taxonomy
@@ -500,7 +491,6 @@ let sending = false;
 
 const el = (id) => document.getElementById(id);
 const supervisorName = () => el("supervisor").value;
-const capValue = () => el("cap").value.trim();
 const t1Count = () => picks.filter((p) => p.tier === 1).length;
 
 /* ------------------------------------------------------------------ build */
@@ -610,7 +600,6 @@ function blocker() {
   if (untiered) return at(`Set a tier on ${untiered} more keyword${untiered === 1 ? "" : "s"}.`);
   if (t1Count() < MIN_T1) return at(`Mark at least ${MIN_T1} keyword as Tier 1.`);
   if (t1Count() > MAX_T1) return at(`Only ${MAX_T1} keywords can be Tier 1.`);
-  if (!validCap()) return at("Enter how many students you can take.", "cap");
   return null;
 }
 
@@ -722,20 +711,6 @@ function validName() {
   return ok;
 }
 
-function validCap() {
-  const n = Number(capValue());
-  return /^\d+$/.test(capValue()) && n >= 1 && n <= MAX_CAP;
-}
-
-function showCapError() {
-  const ok = validCap();
-  el("cap").setAttribute("aria-invalid", String(!ok));
-  el("capErr").textContent = ok ? ""
-    : capValue() ? `Enter a whole number of students between 1 and ${MAX_CAP}.`
-                 : "Enter how many students you can take.";
-  el("capErr").classList.toggle("hidden", ok);
-  return ok;
-}
 
 /* Two digits of keyword index (1-based into data/keywords.txt) plus one of
    tier, per keyword. Decodes with nothing but the pinned list. */
@@ -760,7 +735,6 @@ async function send() {
 
   const body = new URLSearchParams();
   body.append(ENTRY.supervisor, supervisorName());
-  body.append(ENTRY.cap, capValue());
   picks.forEach((p, i) => {
     body.append(ENTRY.keywords[i], p.kw);
     body.append(ENTRY.tiers[i], String(p.tier));
@@ -771,7 +745,7 @@ async function send() {
     else await fetch(FORM_ENDPOINT, { method: "POST", mode: "no-cors", body });
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify({
-        name: supervisorName(), cap: capValue(), at: Date.now(), picks,
+        name: supervisorName(), at: Date.now(), picks,
       }));
     } catch {}
     showDone();
@@ -808,10 +782,6 @@ function showDone() {
   el("app").classList.add("hidden");
   el("bottombar").classList.add("hidden");
   tierGroups(el("doneSummary"));
-  const cap = document.createElement("p");
-  cap.style.margin = "0";
-  cap.textContent = `Taking up to ${capValue()} students.`;
-  el("doneSummary").appendChild(cap);
   el("ref").textContent = referenceCode();
   el("done").classList.remove("hidden");
   window.scrollTo(0, 0);
@@ -851,7 +821,6 @@ el("supervisor").addEventListener("change", () => {
   validName();
   loadRoster(supervisorName());
 });
-el("cap").addEventListener("input", () => { if (el("capErr").textContent) showCapError(); render(); });
 el("search").addEventListener("input", (e) => applySearch(e.target.value));
 el("expandAll").addEventListener("click", () => setAllOpen(true));
 el("collapseAll").addEventListener("click", () => setAllOpen(false));
@@ -860,7 +829,6 @@ function openReview() {
   const stop = blocker();
   if (stop) {
     if (stop.focus === "supervisor") validName();
-    if (stop.focus === "cap") showCapError();
     if (stop.focus) {
       el(stop.focus).focus();
       el(stop.focus).scrollIntoView({ block: "center", behavior: "smooth" });
@@ -869,7 +837,6 @@ function openReview() {
   }
   tierGroups(el("reviewGroups"));
   el("reviewName").textContent = supervisorName();
-  el("reviewCap").textContent = capValue();
   el("review").showModal();
 }
 el("submit").addEventListener("click", openReview);
@@ -888,7 +855,6 @@ if (prior && priorPicks.length && KEYWORDS_OF.has(prior.name)) {
     "Restore my previous answers",
     () => {
       el("supervisor").value = prior.name;
-      if (prior.cap) el("cap").value = prior.cap;
       picks = priorPicks.map((p) => ({ kw: p.kw, tier: [1, 2, 3].includes(p.tier) ? p.tier : 0 }));
       validName();
       render();
